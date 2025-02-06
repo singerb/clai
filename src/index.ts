@@ -1,3 +1,5 @@
+#!./node_modules/.bin/tsx
+
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
