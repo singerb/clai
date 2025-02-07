@@ -32,7 +32,7 @@ export class GrepSearchTool implements AITool<GrepSearchParams> {
 		return {
 			name: 'grep_search',
 			description:
-				'Search for content in all files recursively from the workspace root using ripgrep. Use this to look for content within files.',
+				'Search for content in all files recursively from the workspace root using ripgrep. Use this to search for content within files, not to look up files by name.',
 			input_schema: schema,
 		};
 	}

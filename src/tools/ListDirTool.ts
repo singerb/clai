@@ -27,7 +27,8 @@ export class ListDirTool implements AITool<ListDirParams> {
 
 		return {
 			name: 'list_dir',
-			description: 'List the contents of a directory. Use this, recursively if needed, to discover files by looking at filenames.',
+			description:
+				'List the contents of a directory. Use this, recursively if needed, to discover files by looking at filenames.',
 			input_schema: schema,
 		};
 	}
