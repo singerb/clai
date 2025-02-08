@@ -21,7 +21,9 @@ export class Model {
 				return { text: content.text, toolResult: null };
 			case 'tool_use': {
 				// find the tool
-				// console.log('tool request: ' + content.name + ' with ' + JSON.stringify(content.input));
+				// console.log(
+				// 	'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
+				// );
 				const tool = this.tools.find((t) => t.getDefinition().name === content.name);
 				if (!tool) {
 					throw new Error(`Tool ${content.name} not found`);
@@ -58,7 +60,7 @@ export class Model {
 	protected async createMessageFromHistory(messages: Anthropic.MessageParam[]): Promise<string> {
 		const message = await this.anthropic.messages.create({
 			model: this.model,
-			max_tokens: 1024,
+			max_tokens: 4096,
 			messages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
 			system: this.systemPrompt,

@@ -2,6 +2,8 @@ import { promises as fs } from 'fs';
 import { join, normalize } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { AITool } from './Tool.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 type EditFilesParams = {
 	/**
@@ -37,6 +39,12 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 	}
 
 	async invoke(params: EditFilesParams): Promise<string> {
+		const execAsync = promisify(exec);
+
+		if (params === undefined || params.files === undefined) {
+			throw new Error('Bad edit files input parameters: ' + JSON.stringify(params));
+		}
+
 		// Verify all paths are within workspace root first
 		for (const relativePath of Object.keys(params.files)) {
 			const fullPath = join(this.workspaceRoot, relativePath);
@@ -50,8 +58,8 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 
 		const successful = [];
 		const failed = [];
-		const lint = '';
-		const build = '';
+		let lint = '';
+		let build = '';
 
 		// Now perform all writes
 		for (const [relativePath, content] of Object.entries(params.files)) {
@@ -68,11 +76,40 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 			}
 		}
 
-		// TODO: run `npm run format` here, don't care about the output
-		// TODO: run `npm run lint` and grab output here for lint string
-		// TODO: run `npm run type` and grab output here for build string
+		// Run format command and discard output
+		try {
+			await execAsync('npm run format', { cwd: this.workspaceRoot });
+		} catch {
+			// Ignore any formatting errors
+		}
 
-		return (
+		// Run lint command and collect output
+		try {
+			const { stdout, stderr } = await execAsync('npm run lint', { cwd: this.workspaceRoot });
+			lint = stdout + stderr;
+		} catch (error: unknown) {
+			if (error instanceof Error && 'stdout' in error && 'stderr' in error) {
+				const execError = error as { stdout: string; stderr: string };
+				lint = execError.stdout + execError.stderr;
+			} else {
+				lint = 'Error running lint command';
+			}
+		}
+
+		// Run type check command and collect output
+		try {
+			const { stdout, stderr } = await execAsync('npm run type', { cwd: this.workspaceRoot });
+			build = stdout + stderr;
+		} catch (error: unknown) {
+			if (error instanceof Error && 'stdout' in error && 'stderr' in error) {
+				const execError = error as { stdout: string; stderr: string };
+				build = execError.stdout + execError.stderr;
+			} else {
+				build = 'Error running type check command';
+			}
+		}
+
+		const returnString =
 			'Successful writes:\n' +
 			successful.join('\n') +
 			'\n\n' +
@@ -84,8 +121,10 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 			'\n\n' +
 			'Compile errors:\n' +
 			build +
-			'\n\n'
-		);
+			'\n\n';
+
+		console.log(returnString);
+		return returnString;
 	}
 
 	describeInvocation(params: EditFilesParams): string {
