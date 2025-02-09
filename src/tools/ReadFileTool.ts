@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { AITool } from './Tool.js';
+import { z } from 'zod';
 
 type ReadFileParams = {
 	/**
@@ -11,6 +12,10 @@ type ReadFileParams = {
 };
 
 export class ReadFileTool implements AITool<ReadFileParams> {
+	private paramsSchema = z.object({
+		relative_workspace_path: z.string().min(1),
+	});
+
 	constructor(private workspaceRoot: string) {}
 
 	getDefinition(): Anthropic.Tool {
@@ -32,7 +37,12 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 		};
 	}
 
+	checkParams(params: ReadFileParams): void {
+		this.paramsSchema.parse(params);
+	}
+
 	async invoke(params: ReadFileParams): Promise<string> {
+		this.checkParams(params);
 		const fullPath = path.join(this.workspaceRoot, params.relative_workspace_path);
 
 		// Ensure the resolved path stays within the workspace root
@@ -59,6 +69,7 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 	}
 
 	describeInvocation(params: ReadFileParams): string {
+		this.checkParams(params);
 		return '(reading file at ' + params.relative_workspace_path + ')';
 	}
 }

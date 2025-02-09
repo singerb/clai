@@ -26,4 +26,11 @@ export interface AITool<T extends ToolParams> {
 	 * @returns A human readable description of the tool invocation
 	 */
 	describeInvocation(params: T): string;
+
+	/**
+	 * Validates the parameters passed to the tool
+	 * @param params The parameters to validate
+	 * @throws Error if the parameters are invalid
+	 */
+	checkParams(params: T): void;
 }

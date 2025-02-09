@@ -19,7 +19,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
     "commander": "^13.1.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.4",

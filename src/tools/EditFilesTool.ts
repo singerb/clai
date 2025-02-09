@@ -4,15 +4,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AITool } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { z } from 'zod';
 
 type EditFilesParams = {
 	/**
-	 * Object mapping relative file paths to their new content
+	 * Array of objects mapping relative file paths to their new content
 	 */
-	files: Record<string, string>;
+	files: { path: string, content: string }[];
 };
 
 export class EditFilesTool implements AITool<EditFilesParams> {
+	private schema = z.object({
+		files: z.record(z.string(), z.string()),
+	});
+
 	constructor(private workspaceRoot: string) {}
 
 	getDefinition(): Anthropic.Tool {
@@ -20,10 +25,21 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 			type: 'object' as const,
 			properties: {
 				files: {
-					type: 'object' as const,
-					description: 'Object mapping relative file paths to their new content',
-					additionalProperties: {
-						type: 'string' as const,
+					type: 'array' as const,
+					description: 'List of objects, each having the file path and new content',
+					items: {
+						type: 'object' as const,
+						properties: {
+							path: {
+								type: 'string' as const,
+								description: 'File path to write',
+							},
+							content: {
+								type: 'string' as const,
+								description: 'New file content to write',
+							},
+						},
+						required: ['path','content'],
 					},
 				},
 			},
@@ -33,25 +49,31 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 		return {
 			name: 'edit_files',
 			description:
-				"Write new content to one or more files, specified as a map of paths to content. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.",
+				"Write new content to one or more files, specified as an array of objects each with a path and the new content for that path. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.",
 			input_schema: schema,
 		};
+	}
+
+	checkParams(params: EditFilesParams): void {
+		this.schema.parse(params);
 	}
 
 	async invoke(params: EditFilesParams): Promise<string> {
 		const execAsync = promisify(exec);
 
-		if (params === undefined || params.files === undefined) {
-			throw new Error('Bad edit files input parameters: ' + JSON.stringify(params));
-		}
+		// this.checkParams(params);
+
+		// if (params === undefined || params.files === undefined) {
+		// 	throw new Error('Bad edit files input parameters: ' + JSON.stringify(params));
+		// }
 
 		// Verify all paths are within workspace root first
-		for (const relativePath of Object.keys(params.files)) {
-			const fullPath = join(this.workspaceRoot, relativePath);
+		for (const { path } of params.files) {
+			const fullPath = join(this.workspaceRoot, path);
 			const normalizedPath = normalize(fullPath);
 			if (!normalizedPath.startsWith(this.workspaceRoot)) {
 				throw new Error(
-					`Access denied: The path ${relativePath} resolves outside the workspace root`
+					`Access denied: The path ${path} resolves outside the workspace root`
 				);
 			}
 		}
@@ -62,16 +84,16 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 		let build = '';
 
 		// Now perform all writes
-		for (const [relativePath, content] of Object.entries(params.files)) {
-			const fullPath = join(this.workspaceRoot, relativePath);
+		for (const {path, content} of params.files) {
+			const fullPath = join(this.workspaceRoot, path);
 			try {
 				await fs.writeFile(fullPath, content);
-				successful.push(`Successfully wrote to ${relativePath}`);
+				successful.push(`Successfully wrote to ${path}`);
 			} catch (error: unknown) {
 				if (error instanceof Error) {
-					failed.push(`Failed to write file at ${relativePath}: ${error.message}`);
+					failed.push(`Failed to write file at ${path}: ${error.message}`);
 				} else {
-					failed.push(`Failed to write file at ${relativePath}: Unknown error`);
+					failed.push(`Failed to write file at ${path}: Unknown error`);
 				}
 			}
 		}
@@ -128,7 +150,8 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 	}
 
 	describeInvocation(params: EditFilesParams): string {
-		const fileList = Object.keys(params.files).join(', ');
+		// this.checkParams(params);
+		const fileList = params.files.map(({path}) => path).join(', ');
 		return `(editing and checking files: ${fileList})`;
 	}
 }
