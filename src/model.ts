@@ -15,7 +15,12 @@ export class Model {
 	 */
 	protected async handleClaudeResponse(content: Anthropic.ContentBlock): Promise<{
 		text: string | null;
-		toolResult: { content: string; tool_use_id: string; is_error?: boolean } | null;
+		toolResult: {
+			content: string;
+			tool_use_id: string;
+			is_error?: boolean;
+			systemPrompt?: string;
+		} | null;
 	}> {
 		switch (content.type) {
 			case 'text':
@@ -33,6 +38,7 @@ export class Model {
 
 				try {
 					// execute the tool
+					this.output.text(tool.describeInvocation(content.input as ToolParams));
 					const result = await tool.invoke(content.input as ToolParams);
 					// this.output.aiInfo('tool response: ' + result);
 					return {
@@ -58,20 +64,32 @@ export class Model {
 	}
 
 	/**
-	 * Creates a message with the given messages array
+	 * Creates a message with the given messages array and system prompts
 	 */
-	protected async createMessageFromHistory(messages: Anthropic.MessageParam[]): Promise<string> {
+	protected async createMessageFromHistory(
+		messages: Anthropic.MessageParam[],
+		systemPrompts: Anthropic.TextBlockParam[] = [{ type: 'text', text: this.systemPrompt }]
+	): Promise<string> {
+		// Add cache_control: 'ephemeral' to the last system prompt
+		const finalSystemPrompts = [...systemPrompts];
+		if (finalSystemPrompts.length > 0) {
+			const lastPrompt = { ...finalSystemPrompts[finalSystemPrompts.length - 1] };
+			lastPrompt.cache_control = { type: 'ephemeral' };
+			finalSystemPrompts[finalSystemPrompts.length - 1] = lastPrompt;
+		}
+
 		const message = await this.anthropic.messages.create({
 			model: this.model,
 			max_tokens: 4096,
 			messages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
-			system: this.systemPrompt,
+			system: finalSystemPrompts,
 		});
 
 		let responseText = '';
 		let needsContinuation = false;
 		const newMessages = [...messages];
+		let newSystemPrompts = [...systemPrompts];
 
 		// log useful info
 		this.output.aiInfo('stop reason: ' + message.stop_reason);
@@ -87,6 +105,15 @@ export class Model {
 
 			if (toolResult !== null) {
 				needsContinuation = true;
+
+				// If the tool provided new system prompt content, add it
+				if (toolResult.systemPrompt) {
+					newSystemPrompts = [
+						...newSystemPrompts,
+						{ type: 'text', text: toolResult.systemPrompt },
+					];
+				}
+
 				newMessages.push(
 					{ role: 'assistant', content: [content] },
 					{
@@ -106,7 +133,10 @@ export class Model {
 
 		// If any tool was used, continue the conversation
 		if (needsContinuation) {
-			const continuationResponse = await this.createMessageFromHistory(newMessages);
+			const continuationResponse = await this.createMessageFromHistory(
+				newMessages,
+				newSystemPrompts
+			);
 			responseText += continuationResponse + '\n';
 		}
 
