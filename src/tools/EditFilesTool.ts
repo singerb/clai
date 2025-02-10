@@ -10,12 +10,17 @@ type EditFilesParams = {
 	/**
 	 * Array of objects mapping relative file paths to their new content
 	 */
-	files: { path: string, content: string }[];
+	files: { path: string; content: string }[];
 };
 
 export class EditFilesTool implements AITool<EditFilesParams> {
 	private schema = z.object({
-		files: z.record(z.string(), z.string()),
+		files: z.array(
+			z.object({
+				path: z.string(),
+				content: z.string(),
+			})
+		),
 	});
 
 	constructor(private workspaceRoot: string) {}
@@ -26,20 +31,21 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 			properties: {
 				files: {
 					type: 'array' as const,
-					description: 'List of objects, each having the file path and new content',
+					description:
+						'Array of record objects, where each object has the file path and new content for that file',
 					items: {
 						type: 'object' as const,
 						properties: {
 							path: {
 								type: 'string' as const,
-								description: 'File path to write',
+								description: 'File path to write to',
 							},
 							content: {
 								type: 'string' as const,
 								description: 'New file content to write',
 							},
 						},
-						required: ['path','content'],
+						required: ['path', 'content'],
 					},
 				},
 			},
@@ -49,7 +55,7 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 		return {
 			name: 'edit_files',
 			description:
-				"Write new content to one or more files, specified as an array of objects each with a path and the new content for that path. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.",
+				"Write new content to one or more files, specified as an array of record objects each with a path and the new content for that path. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.",
 			input_schema: schema,
 		};
 	}
@@ -61,11 +67,7 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 	async invoke(params: EditFilesParams): Promise<string> {
 		const execAsync = promisify(exec);
 
-		// this.checkParams(params);
-
-		// if (params === undefined || params.files === undefined) {
-		// 	throw new Error('Bad edit files input parameters: ' + JSON.stringify(params));
-		// }
+		this.checkParams(params);
 
 		// Verify all paths are within workspace root first
 		for (const { path } of params.files) {
@@ -84,7 +86,7 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 		let build = '';
 
 		// Now perform all writes
-		for (const {path, content} of params.files) {
+		for (const { path, content } of params.files) {
 			const fullPath = join(this.workspaceRoot, path);
 			try {
 				await fs.writeFile(fullPath, content);
@@ -150,8 +152,8 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 	}
 
 	describeInvocation(params: EditFilesParams): string {
-		// this.checkParams(params);
-		const fileList = params.files.map(({path}) => path).join(', ');
+		this.checkParams(params);
+		const fileList = params.files.map(({ path }) => path).join(', ');
 		return `(editing and checking files: ${fileList})`;
 	}
 }

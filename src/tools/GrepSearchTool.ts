@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 // import { promisify } from 'util';
 import { AITool, ToolParams } from './Tool.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
 
 // const execAsync = promisify(exec);
 
@@ -15,6 +16,10 @@ interface GrepSearchParams extends ToolParams {
 }
 
 export class GrepSearchTool implements AITool<GrepSearchParams> {
+	private paramsSchema = z.object({
+		query: z.string().min(1),
+	});
+
 	constructor(private workspaceRoot: string) {}
 
 	getDefinition(): Anthropic.Tool {
@@ -35,6 +40,10 @@ export class GrepSearchTool implements AITool<GrepSearchParams> {
 				'Search for content in all files recursively from the workspace root using ripgrep. Use this to search for content within files, not to look up files by name.',
 			input_schema: schema,
 		};
+	}
+
+	checkParams(params: GrepSearchParams): void {
+		this.paramsSchema.parse(params);
 	}
 
 	async invoke(params: GrepSearchParams): Promise<string> {
