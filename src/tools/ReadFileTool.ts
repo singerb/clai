@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool } from './Tool.js';
+import { AITool, ToolResult } from './Tool.js';
 import { z } from 'zod';
 
 type ReadFileParams = {
@@ -41,7 +41,7 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 		this.paramsSchema.parse(params);
 	}
 
-	async invoke(params: ReadFileParams): Promise<string> {
+	async invoke(params: ReadFileParams): Promise<ToolResult> {
 		this.checkParams(params);
 		const fullPath = path.join(this.workspaceRoot, params.relative_workspace_path);
 
@@ -49,13 +49,16 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 		const normalizedPath = path.normalize(fullPath);
 		if (!normalizedPath.startsWith(this.workspaceRoot)) {
 			throw new Error(
-				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root`
+				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root.`
 			);
 		}
 
 		try {
 			const content = await fs.readFile(fullPath, 'utf-8');
-			return content;
+			return {
+				system: content,
+				content: `File ${params.relative_workspace_path} read successfully and included in the context.`,
+			};
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(
@@ -63,7 +66,7 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 				);
 			}
 			throw new Error(
-				`Failed to read file at ${params.relative_workspace_path}: Unknown error`
+				`Failed to read file at ${params.relative_workspace_path}: Unknown error.`
 			);
 		}
 	}

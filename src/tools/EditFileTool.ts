@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join, normalize } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool } from './Tool.js';
+import { AITool, ToolResult } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
@@ -49,7 +49,7 @@ export class EditFileTool implements AITool<EditFileParams> {
 		this.schema.parse(params);
 	}
 
-	async invoke(params: EditFileParams): Promise<string> {
+	async invoke(params: EditFileParams): Promise<ToolResult> {
 		const execAsync = promisify(exec);
 
 		this.checkParams(params);
@@ -59,7 +59,7 @@ export class EditFileTool implements AITool<EditFileParams> {
 		const normalizedPath = normalize(fullPath);
 		if (!normalizedPath.startsWith(this.workspaceRoot)) {
 			throw new Error(
-				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root`
+				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root.`
 			);
 		}
 
@@ -69,15 +69,15 @@ export class EditFileTool implements AITool<EditFileParams> {
 		// Now perform all writes
 		try {
 			await fs.writeFile(fullPath, params.content);
-			successful.push(`Successfully wrote to ${params.relative_workspace_path}`);
+			successful.push(`Successfully wrote to ${params.relative_workspace_path}.`);
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				failed.push(
-					`Failed to write file at ${params.relative_workspace_path}: ${error.message}`
+					`Failed to write file at ${params.relative_workspace_path}: ${error.message}.`
 				);
 			} else {
 				failed.push(
-					`Failed to write file at ${params.relative_workspace_path}: Unknown error`
+					`Failed to write file at ${params.relative_workspace_path}: Unknown error.`
 				);
 			}
 		}
@@ -97,7 +97,9 @@ export class EditFileTool implements AITool<EditFileParams> {
 			'\n\n';
 
 		console.log(returnString);
-		return returnString;
+		return {
+			content: returnString,
+		};
 	}
 
 	describeInvocation(params: EditFileParams): string {

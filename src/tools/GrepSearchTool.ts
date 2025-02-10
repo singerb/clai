@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 // import { promisify } from 'util';
-import { AITool, ToolParams } from './Tool.js';
+import { AITool, ToolParams, ToolResult } from './Tool.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
@@ -46,7 +46,7 @@ export class GrepSearchTool implements AITool<GrepSearchParams> {
 		this.paramsSchema.parse(params);
 	}
 
-	async invoke(params: GrepSearchParams): Promise<string> {
+	async invoke(params: GrepSearchParams): Promise<ToolResult> {
 		try {
 			// console.log('running rg, query: ' + params.query.replace(/"/g, '\\"'));
 			// Use ripgrep with smart case (-S), line numbers (-n), and limit to 50 matches (-m 50)
@@ -62,20 +62,26 @@ export class GrepSearchTool implements AITool<GrepSearchParams> {
 			if (stderr) {
 				// rg writes some info to stderr that isn't errors
 				if (!stdout) {
-					return `No matches found${stderr ? ` (${stderr})` : ''}`;
+					return {
+						content: `No matches found${stderr ? ` (${stderr})` : ''}.`,
+					};
 				}
 			}
 
-			return stdout || 'No matches found';
+			return {
+				content: stdout || 'No matches found.',
+			};
 		} catch (error: unknown) {
 			// console.log('caught error ' + error);
 			// ripgrep exits with code 1 when no matches are found
 			if (error && typeof error === 'object' && 'code' in error && error.code === 1) {
-				return 'No matches found';
+				return {
+					content: 'No matches found.',
+				};
 			}
 
 			throw new Error(
-				`Failed to search: ${error instanceof Error ? error.message : 'Unknown error'}`
+				`Failed to search: ${error instanceof Error ? error.message : 'Unknown error'}.`
 			);
 		}
 	}

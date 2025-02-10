@@ -2,6 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 
 export type ToolParams = Record<string, unknown>;
 
+export interface ToolResult {
+	content: string;
+	system?: string;
+}
+
 /**
  * Represents the base interface for all tools in the system
  */
@@ -16,7 +21,7 @@ export interface AITool<T extends ToolParams> {
 	 * @param params The parameters to pass to the tool
 	 * @returns The result of the tool invocation
 	 */
-	invoke(params: T): Promise<string>;
+	invoke(params: T): Promise<ToolResult>;
 
 	/**
 	 * Describes what the tool will do when invoked with these params;

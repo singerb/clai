@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join, normalize } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool } from './Tool.js';
+import { AITool, ToolResult } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
@@ -64,7 +64,7 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 		this.schema.parse(params);
 	}
 
-	async invoke(params: EditFilesParams): Promise<string> {
+	async invoke(params: EditFilesParams): Promise<ToolResult> {
 		const execAsync = promisify(exec);
 
 		this.checkParams(params);
@@ -148,7 +148,9 @@ export class EditFilesTool implements AITool<EditFilesParams> {
 			'\n\n';
 
 		console.log(returnString);
-		return returnString;
+		return {
+			content: returnString,
+		};
 	}
 
 	describeInvocation(params: EditFilesParams): string {

@@ -19,7 +19,7 @@ export class Model {
 			content: string;
 			tool_use_id: string;
 			is_error?: boolean;
-			systemPrompt?: string;
+			system?: string;
 		} | null;
 	}> {
 		switch (content.type) {
@@ -29,7 +29,8 @@ export class Model {
 			case 'tool_use': {
 				// find the tool
 				this.output.aiInfo(
-					'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
+					// 'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
+					'tool request: ' + content.name
 				);
 				const tool = this.tools.find((t) => t.getDefinition().name === content.name);
 				if (!tool) {
@@ -44,8 +45,9 @@ export class Model {
 					return {
 						text: tool.describeInvocation(content.input as ToolParams),
 						toolResult: {
-							content: result,
+							content: result.content,
 							tool_use_id: content.id,
+							system: result.system,
 						},
 					};
 				} catch (error) {
@@ -107,10 +109,10 @@ export class Model {
 				needsContinuation = true;
 
 				// If the tool provided new system prompt content, add it
-				if (toolResult.systemPrompt) {
+				if (toolResult.system) {
 					newSystemPrompts = [
 						...newSystemPrompts,
-						{ type: 'text', text: toolResult.systemPrompt },
+						{ type: 'text', text: toolResult.system },
 					];
 				}
 

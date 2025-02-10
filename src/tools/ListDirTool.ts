@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool } from './Tool.js';
+import { AITool, ToolResult } from './Tool.js';
 import { z } from 'zod';
 
 type ListDirParams = {
@@ -42,7 +42,7 @@ export class ListDirTool implements AITool<ListDirParams> {
 		this.paramsSchema.parse(params);
 	}
 
-	async invoke(params: ListDirParams): Promise<string> {
+	async invoke(params: ListDirParams): Promise<ToolResult> {
 		this.checkParams(params);
 		const fullPath = path.join(this.workspaceRoot, params.relative_workspace_path);
 
@@ -50,7 +50,7 @@ export class ListDirTool implements AITool<ListDirParams> {
 		const normalizedPath = path.normalize(fullPath);
 		if (!normalizedPath.startsWith(this.workspaceRoot)) {
 			throw new Error(
-				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root`
+				`Access denied: The path ${params.relative_workspace_path} resolves outside the workspace root.`
 			);
 		}
 
@@ -59,7 +59,9 @@ export class ListDirTool implements AITool<ListDirParams> {
 			const formattedEntries = entries.map((entry) => {
 				return entry.name + (entry.isDirectory() ? '/' : '');
 			});
-			return formattedEntries.join('\n');
+			return {
+				content: formattedEntries.join('\n'),
+			};
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(
@@ -67,7 +69,7 @@ export class ListDirTool implements AITool<ListDirParams> {
 				);
 			}
 			throw new Error(
-				`Failed to list directory at ${params.relative_workspace_path}: Unknown error`
+				`Failed to list directory at ${params.relative_workspace_path}: Unknown error.`
 			);
 		}
 	}

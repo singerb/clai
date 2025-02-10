@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool } from './Tool.js';
+import { AITool, ToolResult } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -25,7 +25,7 @@ export class BuildTool implements AITool<BuildParams> {
 
 	checkParams(): void {}
 
-	async invoke(): Promise<string> {
+	async invoke(): Promise<ToolResult> {
 		const execAsync = promisify(exec);
 
 		this.checkParams();
@@ -49,7 +49,7 @@ export class BuildTool implements AITool<BuildParams> {
 				const execError = error as { stdout: string; stderr: string };
 				lint = execError.stdout + execError.stderr;
 			} else {
-				lint = 'Error running lint command';
+				lint = 'Error running lint command.';
 			}
 		}
 
@@ -62,7 +62,7 @@ export class BuildTool implements AITool<BuildParams> {
 				const execError = error as { stdout: string; stderr: string };
 				build = execError.stdout + execError.stderr;
 			} else {
-				build = 'Error running type check command';
+				build = 'Error running type check command.';
 			}
 		}
 
@@ -70,7 +70,9 @@ export class BuildTool implements AITool<BuildParams> {
 			'Lint errors:\n' + lint + '\n\n' + 'Compile errors:\n' + build + '\n\n';
 
 		console.log(returnString);
-		return returnString;
+		return {
+			content: returnString,
+		};
 	}
 
 	describeInvocation(): string {
