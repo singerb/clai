@@ -1,12 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AITool, ToolParams } from './tools/Tool.js';
+import { Output } from './output.js';
 
 export class Model {
 	constructor(
 		protected anthropic: Anthropic,
 		protected model: string,
 		protected tools: AITool<ToolParams>[],
-		protected systemPrompt: string
+		protected systemPrompt: string,
+		protected output: Output
 	) {}
 	/**
 	 * Handles a single content block from Claude's response
@@ -17,13 +19,13 @@ export class Model {
 	}> {
 		switch (content.type) {
 			case 'text':
-				// console.log('text block:' + content.text);
+				this.output.text(content.text);
 				return { text: content.text, toolResult: null };
 			case 'tool_use': {
 				// find the tool
-				// console.log(
-				// 	'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
-				// );
+				this.output.aiInfo(
+					'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
+				);
 				const tool = this.tools.find((t) => t.getDefinition().name === content.name);
 				if (!tool) {
 					throw new Error(`Tool ${content.name} not found`);
@@ -32,7 +34,7 @@ export class Model {
 				try {
 					// execute the tool
 					const result = await tool.invoke(content.input as ToolParams);
-					// console.log('tool response: ' + result);
+					// this.output.aiInfo('tool response: ' + result);
 					return {
 						text: tool.describeInvocation(content.input as ToolParams),
 						toolResult: {
@@ -41,6 +43,7 @@ export class Model {
 						},
 					};
 				} catch (error) {
+					this.output.error('tool error: ' + error);
 					return {
 						text: tool.describeInvocation(content.input as ToolParams),
 						toolResult: {
@@ -69,6 +72,10 @@ export class Model {
 		let responseText = '';
 		let needsContinuation = false;
 		const newMessages = [...messages];
+
+		// log useful info
+		this.output.aiInfo('stop reason: ' + message.stop_reason);
+		this.output.aiInfo('usage: ' + JSON.stringify(message.usage));
 
 		// Process each content block
 		for (const content of message.content) {
@@ -100,7 +107,6 @@ export class Model {
 		// If any tool was used, continue the conversation
 		if (needsContinuation) {
 			const continuationResponse = await this.createMessageFromHistory(newMessages);
-			// console.log('continuation:' + continuationResponse);
 			responseText += continuationResponse + '\n';
 		}
 
