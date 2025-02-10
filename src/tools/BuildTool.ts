@@ -1,10 +1,7 @@
-import { promises as fs } from 'fs';
-import { join, normalize } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { AITool } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { z } from 'zod';
 
 type BuildParams = Record<string, string>;
 
@@ -26,12 +23,12 @@ export class BuildTool implements AITool<BuildParams> {
 		};
 	}
 
-	checkParams(params: BuildParams): void {}
+	checkParams(): void {}
 
-	async invoke(params: BuildParams): Promise<string> {
+	async invoke(): Promise<string> {
 		const execAsync = promisify(exec);
 
-		this.checkParams(params);
+		this.checkParams();
 
 		let lint = '';
 		let build = '';
@@ -76,8 +73,8 @@ export class BuildTool implements AITool<BuildParams> {
 		return returnString;
 	}
 
-	describeInvocation(params: BuildParams): string {
-		this.checkParams(params);
+	describeInvocation(): string {
+		this.checkParams();
 		return `(linting and building)`;
 	}
 }
