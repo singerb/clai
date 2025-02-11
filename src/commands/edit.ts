@@ -6,14 +6,16 @@ import { EditFileTool } from '../tools/EditFileTool.js';
 import { BuildTool } from '../tools/BuildTool.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
+import { getPrompt } from '../input.js';
 
 export const setupEditCommand = (anthropic: Anthropic): Command => {
 	return new Command('edit')
 		.description('Have Claude edit your code')
-		.argument('<request>', 'The edit request for Claude')
-		.action(async (request: string) => {
+		.argument('[request]', 'The edit request for Claude')
+		.action(async (request?: string) => {
 			const output = new Output();
 			try {
+				const prompt = await getPrompt(request);
 				// add the edit and build tool for this command
 				const tools = [
 					...createTools(process.cwd()),
@@ -27,7 +29,7 @@ export const setupEditCommand = (anthropic: Anthropic): Command => {
 					CONFIG.systemPrompts.edit,
 					output
 				);
-				await model.createMessage(request);
+				await model.createMessage(prompt);
 			} catch (error) {
 				output.error(
 					'Error: ' +
