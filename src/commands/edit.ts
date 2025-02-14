@@ -20,7 +20,7 @@ export const setupEditCommand = (anthropic: Anthropic): Command => {
 				const tools = [
 					...createTools(process.cwd()),
 					new EditFileTool(process.cwd()),
-					new BuildTool(process.cwd()),
+					...(BuildTool.isAvailable() ? [new BuildTool(process.cwd())] : []),
 				];
 				const model = new Model(
 					anthropic,
