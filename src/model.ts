@@ -73,19 +73,34 @@ export class Model {
 		systemPrompts: Anthropic.TextBlockParam[] = [{ type: 'text', text: this.systemPrompt }]
 	): Promise<string> {
 		// Add cache_control: 'ephemeral' to the last system prompt
-		const finalSystemPrompts = [...systemPrompts];
-		if (finalSystemPrompts.length > 0) {
-			const lastPrompt = { ...finalSystemPrompts[finalSystemPrompts.length - 1] };
-			lastPrompt.cache_control = { type: 'ephemeral' };
-			finalSystemPrompts[finalSystemPrompts.length - 1] = lastPrompt;
+		if (systemPrompts.length > 0) {
+			systemPrompts[systemPrompts.length - 1] = {
+				...systemPrompts[systemPrompts.length - 1],
+				cache_control: { type: 'ephemeral' },
+			};
+		}
+
+		// Add cache_control: 'ephemeral' to the last message if there are any messages
+		if (messages.length > 0) {
+			const lastMessage = messages[messages.length - 1];
+			if (typeof lastMessage.content === 'string') {
+				lastMessage.content = [{ type: 'text', text: lastMessage.content }];
+			}
+			if (Array.isArray(lastMessage.content)) {
+				const lastContentIndex = lastMessage.content.length - 1;
+				lastMessage.content[lastContentIndex] = {
+					...lastMessage.content[lastContentIndex],
+					cache_control: { type: 'ephemeral' },
+				};
+			}
 		}
 
 		const message = await this.anthropic.messages.create({
 			model: this.model,
 			max_tokens: 4096,
-			messages,
+			messages: messages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
-			system: finalSystemPrompts,
+			system: systemPrompts,
 		});
 
 		let responseText = '';

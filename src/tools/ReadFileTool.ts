@@ -56,7 +56,7 @@ export class ReadFileTool implements AITool<ReadFileParams> {
 		try {
 			const content = await fs.readFile(fullPath, 'utf-8');
 			return {
-				system: content,
+				system: `${params.relative_workspace_path}:\n\n${content}`,
 				content: `File ${params.relative_workspace_path} read successfully and included in the context.`,
 			};
 		} catch (error: unknown) {
