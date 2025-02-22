@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { AITool, ToolParams } from './tools/Tool.js';
 import { Output } from './output.js';
 
+type CacheControl = { type: 'ephemeral' };
+type TextBlock = Anthropic.TextBlockParam & { cache_control?: CacheControl };
+
 export class Model {
 	constructor(
 		protected anthropic: Anthropic,
@@ -70,37 +73,48 @@ export class Model {
 	 */
 	protected async createMessageFromHistory(
 		messages: Anthropic.MessageParam[],
-		systemPrompts: Anthropic.TextBlockParam[] = [{ type: 'text', text: this.systemPrompt }]
+		systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }]
 	): Promise<string> {
-		// Add cache_control: 'ephemeral' to the last system prompt
-		if (systemPrompts.length > 0) {
-			systemPrompts[systemPrompts.length - 1] = {
-				...systemPrompts[systemPrompts.length - 1],
-				cache_control: { type: 'ephemeral' },
-			};
-		}
+		// Clean up and set cache_control on system prompts
+		const processedSystemPrompts = systemPrompts.map((prompt, index) => {
+			const cleanPrompt = { ...prompt };
+			delete cleanPrompt.cache_control;
+			if (index === systemPrompts.length - 1) {
+				return { ...cleanPrompt, cache_control: { type: 'ephemeral' as const } };
+			}
+			return cleanPrompt;
+		});
 
-		// Add cache_control: 'ephemeral' to the last message if there are any messages
-		if (messages.length > 0) {
-			const lastMessage = messages[messages.length - 1];
-			if (typeof lastMessage.content === 'string') {
-				lastMessage.content = [{ type: 'text', text: lastMessage.content }];
+		// Clean up and set cache_control on messages
+		const processedMessages = messages.map((message) => {
+			const cleanMessage = { ...message };
+			if (typeof cleanMessage.content === 'string') {
+				cleanMessage.content = [{ type: 'text', text: cleanMessage.content }];
 			}
-			if (Array.isArray(lastMessage.content)) {
-				const lastContentIndex = lastMessage.content.length - 1;
-				lastMessage.content[lastContentIndex] = {
-					...lastMessage.content[lastContentIndex],
-					cache_control: { type: 'ephemeral' },
-				};
+			if (Array.isArray(cleanMessage.content)) {
+				cleanMessage.content = cleanMessage.content.map((content, index) => {
+					const cleanContent = { ...content };
+					if ('cache_control' in cleanContent) {
+						delete cleanContent.cache_control;
+					}
+					if (
+						index === (cleanMessage.content as unknown[]).length - 1 &&
+						messages.indexOf(message) === messages.length - 1
+					) {
+						return { ...cleanContent, cache_control: { type: 'ephemeral' as const } };
+					}
+					return cleanContent;
+				});
 			}
-		}
+			return cleanMessage;
+		});
 
 		const message = await this.anthropic.messages.create({
 			model: this.model,
 			max_tokens: 4096,
-			messages: messages,
+			messages: processedMessages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
-			system: systemPrompts,
+			system: processedSystemPrompts,
 		});
 
 		let responseText = '';
@@ -127,7 +141,7 @@ export class Model {
 				if (toolResult.system) {
 					newSystemPrompts = [
 						...newSystemPrompts,
-						{ type: 'text', text: toolResult.system },
+						{ type: 'text' as const, text: toolResult.system },
 					];
 				}
 
@@ -161,9 +175,20 @@ export class Model {
 	}
 
 	/**
-	 * Creates a message with Claude
+	 * Creates a message with Claude, using only the system prompt
 	 */
 	public async createMessage(prompt: string): Promise<string> {
 		return this.createMessageFromHistory([{ role: 'user', content: prompt }]);
+	}
+
+	/**
+	 * Creates a message with Claude, including additional context in the system prompts
+	 */
+	public async createMessageWithContext(prompt: string, context: string[]): Promise<string> {
+		const systemPrompts: TextBlock[] = [
+			{ type: 'text' as const, text: this.systemPrompt },
+			...context.map((text) => ({ type: 'text' as const, text })),
+		];
+		return this.createMessageFromHistory([{ role: 'user', content: prompt }], systemPrompts);
 	}
 }

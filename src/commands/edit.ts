@@ -7,15 +7,18 @@ import { BuildTool } from '../tools/BuildTool.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
+import { addCommonArgs, getContextContent, CommonArgs } from './common-args.js';
 
 export const setupEditCommand = (anthropic: Anthropic): Command => {
-	return new Command('edit')
+	const command = new Command('edit')
 		.description('Have Claude edit your code')
 		.argument('[request]', 'The edit request for Claude')
-		.action(async (request?: string) => {
+		.action(async (request?: string, options?: CommonArgs) => {
 			const output = new Output();
 			try {
 				const prompt = await getPrompt(request);
+				const contextContent = getContextContent(options || {});
+
 				// add the edit and build tool for this command
 				const tools = [
 					...createTools(process.cwd()),
@@ -29,7 +32,7 @@ export const setupEditCommand = (anthropic: Anthropic): Command => {
 					CONFIG.systemPrompts.edit,
 					output
 				);
-				await model.createMessage(prompt);
+				await model.createMessageWithContext(prompt, contextContent);
 			} catch (error) {
 				output.error(
 					'Error: ' +
@@ -38,4 +41,6 @@ export const setupEditCommand = (anthropic: Anthropic): Command => {
 				process.exit(1);
 			}
 		});
+
+	return addCommonArgs(command);
 };
