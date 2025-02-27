@@ -5,7 +5,13 @@ import { createTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
-import { addCommonArgs, getContextContent, CommonArgs } from './common-args.js';
+import {
+	addCommonArgs,
+	getContextContent,
+	CommonArgs,
+	loadSession,
+	saveSession,
+} from './common-args.js';
 
 export const setupAskCommand = (anthropic: Anthropic): Command => {
 	const command = new Command('ask')
@@ -17,6 +23,9 @@ export const setupAskCommand = (anthropic: Anthropic): Command => {
 				const prompt = await getPrompt(question);
 				const contextContent = getContextContent(options || {});
 
+				// Load session if provided
+				const session = loadSession(options?.session, output);
+
 				const tools = createTools(process.cwd());
 				const model = new Model(
 					anthropic,
@@ -25,7 +34,14 @@ export const setupAskCommand = (anthropic: Anthropic): Command => {
 					CONFIG.systemPrompts.ask,
 					output
 				);
-				await model.createMessageWithContext(prompt, contextContent);
+				const result = await model.createMessage({
+					prompt,
+					context: contextContent.length > 0 ? contextContent : undefined,
+					session,
+				});
+
+				// Save session if path is provided
+				saveSession(options?.session, result, output);
 			} catch (error) {
 				output.error(
 					'Error: ' +

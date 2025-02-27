@@ -5,6 +5,19 @@ import { Output } from './output.js';
 type CacheControl = { type: 'ephemeral' };
 type TextBlock = Anthropic.TextBlockParam & { cache_control?: CacheControl };
 
+export interface MessageResult {
+	state: {
+		messages: Anthropic.MessageParam[];
+		systemPrompts: TextBlock[];
+	};
+}
+
+export interface CreateMessageOptions {
+	prompt: string;
+	context?: string[];
+	session?: MessageResult;
+}
+
 export class Model {
 	constructor(
 		protected anthropic: Anthropic,
@@ -74,7 +87,7 @@ export class Model {
 	protected async createMessageFromHistory(
 		messages: Anthropic.MessageParam[],
 		systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }]
-	): Promise<string> {
+	): Promise<MessageResult> {
 		// Clean up and set cache_control on system prompts
 		const processedSystemPrompts = systemPrompts.map((prompt, index) => {
 			const cleanPrompt = { ...prompt };
@@ -117,7 +130,6 @@ export class Model {
 			system: processedSystemPrompts,
 		});
 
-		let responseText = '';
 		let needsContinuation = false;
 		const newMessages = [...messages];
 		let newSystemPrompts = [...systemPrompts];
@@ -126,13 +138,15 @@ export class Model {
 		this.output.aiInfo('stop reason: ' + message.stop_reason);
 		this.output.aiInfo('usage: ' + JSON.stringify(message.usage));
 
+		// Add the assistant's response to the messages
+		newMessages.push({
+			role: 'assistant',
+			content: message.content,
+		});
+
 		// Process each content block
 		for (const content of message.content) {
-			const { text, toolResult } = await this.handleClaudeResponse(content);
-
-			if (text !== null) {
-				responseText += text + '\n';
-			}
+			const { toolResult } = await this.handleClaudeResponse(content);
 
 			if (toolResult !== null) {
 				needsContinuation = true;
@@ -145,20 +159,17 @@ export class Model {
 					];
 				}
 
-				newMessages.push(
-					{ role: 'assistant', content: [content] },
-					{
-						role: 'user',
-						content: [
-							{
-								tool_use_id: toolResult.tool_use_id,
-								type: 'tool_result',
-								content: toolResult.content,
-								...(toolResult.is_error ? { is_error: true } : {}),
-							},
-						],
-					}
-				);
+				newMessages.push({
+					role: 'user',
+					content: [
+						{
+							tool_use_id: toolResult.tool_use_id,
+							type: 'tool_result',
+							content: toolResult.content,
+							...(toolResult.is_error ? { is_error: true } : {}),
+						},
+					],
+				});
 			}
 		}
 
@@ -168,27 +179,45 @@ export class Model {
 				newMessages,
 				newSystemPrompts
 			);
-			responseText += continuationResponse + '\n';
+
+			// Return the final conversation state from the continuation
+			return continuationResponse;
 		}
 
-		return responseText;
+		return {
+			state: {
+				messages: newMessages,
+				systemPrompts: newSystemPrompts,
+			},
+		};
 	}
 
 	/**
-	 * Creates a message with Claude, using only the system prompt
+	 * Creates a message with Claude, combining any previous session data if provided
 	 */
-	public async createMessage(prompt: string): Promise<string> {
-		return this.createMessageFromHistory([{ role: 'user', content: prompt }]);
-	}
+	public async createMessage(options: CreateMessageOptions): Promise<MessageResult> {
+		// Start with default system prompt
+		let systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }];
 
-	/**
-	 * Creates a message with Claude, including additional context in the system prompts
-	 */
-	public async createMessageWithContext(prompt: string, context: string[]): Promise<string> {
-		const systemPrompts: TextBlock[] = [
-			{ type: 'text' as const, text: this.systemPrompt },
-			...context.map((text) => ({ type: 'text' as const, text })),
-		];
-		return this.createMessageFromHistory([{ role: 'user', content: prompt }], systemPrompts);
+		// Merge with previous session's system prompts if available
+		if (options.session) {
+			systemPrompts = options.session.state.systemPrompts;
+		}
+
+		// Add context if provided
+		if (options.context && options.context.length > 0) {
+			systemPrompts = [
+				...systemPrompts,
+				...options.context.map((text) => ({ type: 'text' as const, text })),
+			];
+		}
+
+		// Start with either previous messages or empty array
+		const messages = options.session ? [...options.session.state.messages] : [];
+
+		// Add the new prompt as a user message
+		messages.push({ role: 'user', content: options.prompt });
+
+		return this.createMessageFromHistory(messages, systemPrompts);
 	}
 }
