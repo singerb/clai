@@ -2,6 +2,22 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { AITool, ToolParams } from './tools/Tool.js';
 import { Output } from './output.js';
 
+type CacheControl = { type: 'ephemeral' };
+type TextBlock = Anthropic.TextBlockParam & { cache_control?: CacheControl };
+
+export interface MessageResult {
+	state: {
+		messages: Anthropic.MessageParam[];
+		systemPrompts: TextBlock[];
+	};
+}
+
+export interface CreateMessageOptions {
+	prompt: string;
+	context?: string[];
+	session?: MessageResult;
+}
+
 export class Model {
 	constructor(
 		protected anthropic: Anthropic,
@@ -70,25 +86,50 @@ export class Model {
 	 */
 	protected async createMessageFromHistory(
 		messages: Anthropic.MessageParam[],
-		systemPrompts: Anthropic.TextBlockParam[] = [{ type: 'text', text: this.systemPrompt }]
-	): Promise<string> {
-		// Add cache_control: 'ephemeral' to the last system prompt
-		const finalSystemPrompts = [...systemPrompts];
-		if (finalSystemPrompts.length > 0) {
-			const lastPrompt = { ...finalSystemPrompts[finalSystemPrompts.length - 1] };
-			lastPrompt.cache_control = { type: 'ephemeral' };
-			finalSystemPrompts[finalSystemPrompts.length - 1] = lastPrompt;
-		}
+		systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }]
+	): Promise<MessageResult> {
+		// Clean up and set cache_control on system prompts
+		const processedSystemPrompts = systemPrompts.map((prompt, index) => {
+			const cleanPrompt = { ...prompt };
+			delete cleanPrompt.cache_control;
+			if (index === systemPrompts.length - 1) {
+				return { ...cleanPrompt, cache_control: { type: 'ephemeral' as const } };
+			}
+			return cleanPrompt;
+		});
+
+		// Clean up and set cache_control on messages
+		const processedMessages = messages.map((message) => {
+			const cleanMessage = { ...message };
+			if (typeof cleanMessage.content === 'string') {
+				cleanMessage.content = [{ type: 'text', text: cleanMessage.content }];
+			}
+			if (Array.isArray(cleanMessage.content)) {
+				cleanMessage.content = cleanMessage.content.map((content, index) => {
+					const cleanContent = { ...content };
+					if ('cache_control' in cleanContent) {
+						delete cleanContent.cache_control;
+					}
+					if (
+						index === (cleanMessage.content as unknown[]).length - 1 &&
+						messages.indexOf(message) === messages.length - 1
+					) {
+						return { ...cleanContent, cache_control: { type: 'ephemeral' as const } };
+					}
+					return cleanContent;
+				});
+			}
+			return cleanMessage;
+		});
 
 		const message = await this.anthropic.messages.create({
 			model: this.model,
 			max_tokens: 4096,
-			messages,
+			messages: processedMessages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
-			system: finalSystemPrompts,
+			system: processedSystemPrompts,
 		});
 
-		let responseText = '';
 		let needsContinuation = false;
 		const newMessages = [...messages];
 		let newSystemPrompts = [...systemPrompts];
@@ -97,13 +138,15 @@ export class Model {
 		this.output.aiInfo('stop reason: ' + message.stop_reason);
 		this.output.aiInfo('usage: ' + JSON.stringify(message.usage));
 
+		// Add the assistant's response to the messages
+		newMessages.push({
+			role: 'assistant',
+			content: message.content,
+		});
+
 		// Process each content block
 		for (const content of message.content) {
-			const { text, toolResult } = await this.handleClaudeResponse(content);
-
-			if (text !== null) {
-				responseText += text + '\n';
-			}
+			const { toolResult } = await this.handleClaudeResponse(content);
 
 			if (toolResult !== null) {
 				needsContinuation = true;
@@ -112,24 +155,21 @@ export class Model {
 				if (toolResult.system) {
 					newSystemPrompts = [
 						...newSystemPrompts,
-						{ type: 'text', text: toolResult.system },
+						{ type: 'text' as const, text: toolResult.system },
 					];
 				}
 
-				newMessages.push(
-					{ role: 'assistant', content: [content] },
-					{
-						role: 'user',
-						content: [
-							{
-								tool_use_id: toolResult.tool_use_id,
-								type: 'tool_result',
-								content: toolResult.content,
-								...(toolResult.is_error ? { is_error: true } : {}),
-							},
-						],
-					}
-				);
+				newMessages.push({
+					role: 'user',
+					content: [
+						{
+							tool_use_id: toolResult.tool_use_id,
+							type: 'tool_result',
+							content: toolResult.content,
+							...(toolResult.is_error ? { is_error: true } : {}),
+						},
+					],
+				});
 			}
 		}
 
@@ -139,16 +179,45 @@ export class Model {
 				newMessages,
 				newSystemPrompts
 			);
-			responseText += continuationResponse + '\n';
+
+			// Return the final conversation state from the continuation
+			return continuationResponse;
 		}
 
-		return responseText;
+		return {
+			state: {
+				messages: newMessages,
+				systemPrompts: newSystemPrompts,
+			},
+		};
 	}
 
 	/**
-	 * Creates a message with Claude
+	 * Creates a message with Claude, combining any previous session data if provided
 	 */
-	public async createMessage(prompt: string): Promise<string> {
-		return this.createMessageFromHistory([{ role: 'user', content: prompt }]);
+	public async createMessage(options: CreateMessageOptions): Promise<MessageResult> {
+		// Start with default system prompt
+		let systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }];
+
+		// Merge with previous session's system prompts if available
+		if (options.session) {
+			systemPrompts = options.session.state.systemPrompts;
+		}
+
+		// Add context if provided
+		if (options.context && options.context.length > 0) {
+			systemPrompts = [
+				...systemPrompts,
+				...options.context.map((text) => ({ type: 'text' as const, text })),
+			];
+		}
+
+		// Start with either previous messages or empty array
+		const messages = options.session ? [...options.session.state.messages] : [];
+
+		// Add the new prompt as a user message
+		messages.push({ role: 'user', content: options.prompt });
+
+		return this.createMessageFromHistory(messages, systemPrompts);
 	}
 }

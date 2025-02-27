@@ -14,7 +14,7 @@ export const CONFIG = {
 			basePrompt +
 			' When supplying edits, you should use the edit_file tool to edit any needed files. Then use the build tool to trigger linting and building, and use the edit_file tool again to fix any lint or build issues that arise. Give up if you can\t fix them after a few tries.',
 	},
-	model: 'claude-3-5-sonnet-latest',
+	model: 'claude-3-7-sonnet-latest',
 	api: {
 		key: process.env.ANTHROPIC_API_KEY,
 	},
