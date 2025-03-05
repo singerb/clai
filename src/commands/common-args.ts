@@ -115,6 +115,55 @@ export function loadSession(
 }
 
 /**
+ * Strip cache_control markers from a message result
+ * @param result The session result to clean
+ * @returns A cleaned copy of the session result with no cache_control markers
+ */
+function stripCacheControlMarkers(result: MessageResult): MessageResult {
+	// Deep clone the result to avoid modifying the original
+	const cleanedResult = JSON.parse(JSON.stringify(result)) as MessageResult;
+
+	// Clean system prompts
+	cleanedResult.state.systemPrompts = cleanedResult.state.systemPrompts.map((prompt) => {
+		const cleanPrompt = { ...prompt };
+		delete cleanPrompt.cache_control;
+		return cleanPrompt;
+	});
+
+	// Clean messages
+	cleanedResult.state.messages = cleanedResult.state.messages.map((message) => {
+		// Handle both string and array content formats
+		if (typeof message.content === 'string') {
+			return message;
+		}
+
+		// For array content, clean each text block
+		if (Array.isArray(message.content)) {
+			const cleanedContent = message.content.map((block) => {
+				if ('type' in block && block.type === 'text') {
+					// Create a clean copy without cache_control
+					const cleanBlock = { ...block };
+					if ('cache_control' in cleanBlock) {
+						delete cleanBlock.cache_control;
+					}
+					return cleanBlock;
+				}
+				return block;
+			});
+
+			return {
+				...message,
+				content: cleanedContent,
+			};
+		}
+
+		return message;
+	});
+
+	return cleanedResult;
+}
+
+/**
  * Save a session to the provided session path
  * @param sessionPath Path to save the session to
  * @param result The session result to save
@@ -129,7 +178,10 @@ export function saveSession(
 		return;
 	}
 
+	// Strip cache_control markers before saving
+	const cleanedResult = stripCacheControlMarkers(result);
+
 	const resolvedPath = path.resolve(sessionPath);
-	fs.writeFileSync(resolvedPath, JSON.stringify(result, null, '\t'), 'utf-8');
+	fs.writeFileSync(resolvedPath, JSON.stringify(cleanedResult, null, '\t'), 'utf-8');
 	output.text(`Session saved to ${resolvedPath}`);
 }

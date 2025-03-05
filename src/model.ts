@@ -82,6 +82,120 @@ export class Model {
 	}
 
 	/**
+	 * Estimates the number of tokens in a text string
+	 * using a rough approximation of 4 characters per token
+	 * after stripping whitespace for better estimation
+	 */
+	protected estimateTokens(text: string): number {
+		// Strip whitespace for better token estimation
+		const strippedText = text.replace(/\s+/g, '');
+		return Math.ceil(strippedText.length / 4);
+	}
+
+	/**
+	 * Applies caching strategy to messages array
+	 * based on the number of existing cache_control markers and token estimation
+	 */
+	protected applyCachingStrategy(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+		if (!messages || messages.length === 0) return messages;
+
+		// Deep clone the messages to avoid modifying the original
+		const processedMessages = JSON.parse(JSON.stringify(messages)) as Anthropic.MessageParam[];
+
+		// First pass: count existing cache_control markers
+		let cacheControlCount = 0;
+		let tokensSinceLastMarker = 0;
+		let lastMarkerIndex: [number, number] | null = null; // [messageIndex, contentIndex]
+
+		// Traverse all messages and their content blocks to count cache_control markers and tokens
+		for (let msgIndex = 0; msgIndex < processedMessages.length; msgIndex++) {
+			const message = processedMessages[msgIndex];
+			let content = message.content;
+
+			// Convert string content to array of blocks if needed
+			if (typeof content === 'string') {
+				content = [{ type: 'text', text: content }];
+				// Update the message to use the array format
+				message.content = content;
+			}
+
+			if (Array.isArray(content)) {
+				for (let blockIndex = 0; blockIndex < content.length; blockIndex++) {
+					const block = content[blockIndex];
+					if ('type' in block) {
+						if (block.type === 'text' && 'text' in block) {
+							tokensSinceLastMarker += this.estimateTokens(block.text);
+						} else if (block.type === 'tool_use' && 'input' in block) {
+							// For tool_use blocks, stringify the input for token estimation
+							const inputString = JSON.stringify(block.input);
+							tokensSinceLastMarker += this.estimateTokens(inputString);
+						}
+					}
+
+					if ('cache_control' in block) {
+						cacheControlCount++;
+						tokensSinceLastMarker = 0; // Reset token count
+						lastMarkerIndex = [msgIndex, blockIndex];
+					}
+				}
+			}
+		}
+
+		// Get the last message
+		const lastMessage = processedMessages[processedMessages.length - 1];
+
+		// Ensure the content is an array
+		if (typeof lastMessage.content === 'string') {
+			lastMessage.content = [{ type: 'text', text: lastMessage.content }];
+		}
+
+		// Get the last content block of the last message (assuming content is now an array)
+		if (Array.isArray(lastMessage.content) && lastMessage.content.length > 0) {
+			const lastBlock = lastMessage.content[lastMessage.content.length - 1] as TextBlock;
+
+			// Apply caching strategy
+			if (cacheControlCount === 0 && tokensSinceLastMarker > 1024) {
+				this.output.aiInfo(
+					`Caching: Case 1 - Adding first cache_control marker. tokensSinceLastMarker: ${tokensSinceLastMarker}`
+				);
+				// Add one cache_control if none exist and tokens > 1024
+				lastBlock.cache_control = { type: 'ephemeral' };
+			} else if (
+				cacheControlCount > 0 &&
+				cacheControlCount < 3 &&
+				tokensSinceLastMarker > 2048
+			) {
+				this.output.aiInfo(
+					`Caching: Case 2 - Adding additional cache_control marker. cacheControlCount: ${cacheControlCount}, tokensSinceLastMarker: ${tokensSinceLastMarker}`
+				);
+				// Add one more cache_control if fewer than 3 exist and tokens since last marker > 2048
+				lastBlock.cache_control = { type: 'ephemeral' };
+			} else if (cacheControlCount >= 3 && lastMarkerIndex) {
+				this.output.aiInfo(
+					`Caching: Case 3 - Moving cache_control marker. cacheControlCount: ${cacheControlCount}, lastMarkerIndex: [${lastMarkerIndex[0]}, ${lastMarkerIndex[1]}]`
+				);
+				// Remove only the last cache_control marker
+				const [msgIndex, blockIndex] = lastMarkerIndex;
+				const message = processedMessages[msgIndex];
+
+				if (Array.isArray(message.content)) {
+					const block = message.content[blockIndex] as TextBlock;
+					delete block.cache_control;
+				}
+
+				// Add to the last block
+				lastBlock.cache_control = { type: 'ephemeral' };
+			} else {
+				this.output.aiInfo(
+					`Caching: No cache_control changes. cacheControlCount: ${cacheControlCount}, tokensSinceLastMarker: ${tokensSinceLastMarker}`
+				);
+			}
+		}
+
+		return processedMessages;
+	}
+
+	/**
 	 * Creates a message with the given messages array and system prompts
 	 */
 	protected async createMessageFromHistory(
@@ -98,29 +212,8 @@ export class Model {
 			return cleanPrompt;
 		});
 
-		// Clean up and set cache_control on messages
-		const processedMessages = messages.map((message) => {
-			const cleanMessage = { ...message };
-			if (typeof cleanMessage.content === 'string') {
-				cleanMessage.content = [{ type: 'text', text: cleanMessage.content }];
-			}
-			if (Array.isArray(cleanMessage.content)) {
-				cleanMessage.content = cleanMessage.content.map((content, index) => {
-					const cleanContent = { ...content };
-					if ('cache_control' in cleanContent) {
-						delete cleanContent.cache_control;
-					}
-					if (
-						index === (cleanMessage.content as unknown[]).length - 1 &&
-						messages.indexOf(message) === messages.length - 1
-					) {
-						return { ...cleanContent, cache_control: { type: 'ephemeral' as const } };
-					}
-					return cleanContent;
-				});
-			}
-			return cleanMessage;
-		});
+		// Apply the caching strategy to the whole messages array
+		const processedMessages = this.applyCachingStrategy(messages);
 
 		const message = await this.anthropic.messages.create({
 			model: this.model,
@@ -131,8 +224,8 @@ export class Model {
 		});
 
 		let needsContinuation = false;
-		const newMessages = [...messages];
-		let newSystemPrompts = [...systemPrompts];
+		const newMessages = [...processedMessages];
+		let newSystemPrompts = [...processedSystemPrompts];
 
 		// log useful info
 		this.output.aiInfo('stop reason: ' + message.stop_reason);
