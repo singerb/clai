@@ -31,7 +31,9 @@ export interface AITool<T extends ToolParams> {
 	 * @returns A human readable description of the tool invocation
 	 */
 	describeInvocation(params: T): string;
+}
 
+export interface LocalTool<T extends ToolParams> extends AITool<T> {
 	/**
 	 * Validates the parameters passed to the tool
 	 * @param params The parameters to validate

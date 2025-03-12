@@ -217,7 +217,7 @@ export class Model {
 
 		const message = await this.anthropic.messages.create({
 			model: this.model,
-			max_tokens: 4096*2,
+			max_tokens: 4096 * 2,
 			messages: processedMessages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
 			system: processedSystemPrompts,

@@ -1,12 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool, ToolResult } from './Tool.js';
+import { LocalTool, ToolResult } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { CONFIG } from '../config.js';
 
 type BuildParams = Record<string, string>;
 
-export class BuildTool implements AITool<BuildParams> {
+export class BuildTool implements LocalTool<BuildParams> {
 	constructor(private workspaceRoot: string) {}
 
 	getDefinition(): Anthropic.Tool {

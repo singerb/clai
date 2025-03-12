@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join, normalize } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool, ToolResult } from './Tool.js';
+import { LocalTool, ToolResult } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ type EditFilesParams = {
 	files: { path: string; content: string }[];
 };
 
-export class EditFilesTool implements AITool<EditFilesParams> {
+export class EditFilesTool implements LocalTool<EditFilesParams> {
 	private schema = z.object({
 		files: z.array(
 			z.object({

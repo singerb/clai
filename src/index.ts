@@ -14,7 +14,7 @@ const anthropic = new Anthropic({
 
 program.name('clai').description('Command Line AI Assistant powered by Claude').version('1.0.0');
 
-program.addCommand(setupAskCommand(anthropic));
-program.addCommand(setupEditCommand(anthropic));
+program.addCommand(await setupAskCommand(anthropic));
+program.addCommand(await setupEditCommand(anthropic));
 
 program.parse();

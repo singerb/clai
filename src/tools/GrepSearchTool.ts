@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 // import { promisify } from 'util';
-import { AITool, ToolParams, ToolResult } from './Tool.js';
+import { LocalTool, ToolParams, ToolResult } from './Tool.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
@@ -15,7 +15,7 @@ interface GrepSearchParams extends ToolParams {
 	query: string;
 }
 
-export class GrepSearchTool implements AITool<GrepSearchParams> {
+export class GrepSearchTool implements LocalTool<GrepSearchParams> {
 	private paramsSchema = z.object({
 		query: z.string().min(1),
 	});

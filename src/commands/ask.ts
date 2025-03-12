@@ -12,13 +12,15 @@ import {
 	loadSession,
 	saveSession,
 } from './common-args.js';
+import { MCPClient } from '../mcp/mcp.js';
 
-export const setupAskCommand = (anthropic: Anthropic): Command => {
+export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> => {
 	const command = new Command('ask')
 		.description('Ask Claude a question')
 		.argument('[question]', 'The question to ask Claude')
 		.action(async (question?: string, options?: CommonArgs) => {
 			const output = new Output();
+			let clients: MCPClient[] = [];
 			try {
 				const prompt = await getPrompt(question);
 				const contextContent = getContextContent(options || {});
@@ -26,7 +28,8 @@ export const setupAskCommand = (anthropic: Anthropic): Command => {
 				// Load session if provided
 				const session = loadSession(options?.session, output);
 
-				const tools = createTools(process.cwd());
+				const { tools, clients: clientList } = await createTools(process.cwd());
+				clients = clientList;
 				const model = new Model(
 					anthropic,
 					CONFIG.model,
@@ -48,6 +51,10 @@ export const setupAskCommand = (anthropic: Anthropic): Command => {
 						(error instanceof Error ? error.message : 'An unknown error occurred')
 				);
 				process.exit(1);
+			} finally {
+				for ( const client of clients ) {
+					await client.close();
+				}
 			}
 		});
 

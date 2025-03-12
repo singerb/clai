@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { AITool, ToolResult } from './Tool.js';
+import { LocalTool, ToolResult } from './Tool.js';
 import { z } from 'zod';
 
 type ListDirParams = {
@@ -11,7 +11,7 @@ type ListDirParams = {
 	relative_workspace_path: string;
 };
 
-export class ListDirTool implements AITool<ListDirParams> {
+export class ListDirTool implements LocalTool<ListDirParams> {
 	private paramsSchema = z.object({
 		relative_workspace_path: z.string().min(1),
 	});
