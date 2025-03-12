@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
 import { Model } from '../model.js';
-import { createTools } from '../tools.js';
+import { createReadOnlyTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
@@ -28,7 +28,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				// Load session if provided
 				const session = loadSession(options?.session, output);
 
-				const { tools, clients: clientList } = await createTools(process.cwd());
+				const { tools, clients: clientList } = await createReadOnlyTools(process.cwd());
 				clients = clientList;
 				const model = new Model(
 					anthropic,
@@ -52,7 +52,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				);
 				process.exit(1);
 			} finally {
-				for ( const client of clients ) {
+				for (const client of clients) {
 					await client.close();
 				}
 			}

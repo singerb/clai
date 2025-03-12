@@ -10,10 +10,7 @@ export class MCPClient {
 
 	protected client?: Client;
 
-	public constructor(
-		program: string,
-		args: string[],
-	) {
+	public constructor({ program, args }: { program: string; args: string[] }) {
 		this.transport = new StdioClientTransport({
 			command: program,
 			args,

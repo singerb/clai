@@ -1,9 +1,7 @@
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
 import { Model } from '../model.js';
-import { createTools } from '../tools.js';
-import { EditFileTool } from '../tools/EditFileTool.js';
-import { BuildTool } from '../tools/BuildTool.js';
+import { createReadWriteTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
@@ -30,15 +28,9 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 				// Load session if provided
 				const session = loadSession(options?.session, output);
 
-				const { tools: baseTools, clients: clientList } = await createTools(process.cwd());
+				const { tools, clients: clientList } = await createReadWriteTools(process.cwd());
 				clients = clientList;
 
-				// add the edit and build tool for this command
-				const tools = [
-					...baseTools,
-					new EditFileTool(process.cwd()),
-					...(BuildTool.isAvailable() ? [new BuildTool(process.cwd())] : []),
-				];
 				const model = new Model(
 					anthropic,
 					CONFIG.model,
@@ -61,7 +53,7 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 				);
 				process.exit(1);
 			} finally {
-				for ( const client of clients ) {
+				for (const client of clients) {
 					await client.close();
 				}
 			}
