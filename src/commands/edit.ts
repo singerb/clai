@@ -12,7 +12,6 @@ import {
 	loadSession,
 	saveSession,
 } from './common-args.js';
-import { MCPClient } from '../mcp/mcp.js';
 
 export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> => {
 	const command = new Command('edit')
@@ -20,7 +19,7 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 		.argument('[request]', 'The edit request for Claude')
 		.action(async (request?: string, options?: CommonArgs) => {
 			const output = new Output();
-			let clients: MCPClient[] = [];
+			let cleanup = async (): Promise<void> => {};
 			try {
 				const prompt = await getPrompt(request);
 				const contextContent = getContextContent(options || {});
@@ -28,8 +27,8 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 				// Load session if provided
 				const session = loadSession(options?.session, output);
 
-				const { tools, clients: clientList } = await createReadWriteTools(process.cwd());
-				clients = clientList;
+				const { tools, cleanup: cleanupFn } = await createReadWriteTools(process.cwd());
+				cleanup = cleanupFn;
 
 				const model = new Model(
 					anthropic,
@@ -53,9 +52,7 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 				);
 				process.exit(1);
 			} finally {
-				for (const client of clients) {
-					await client.close();
-				}
+				await cleanup();
 			}
 		});
 

@@ -12,7 +12,6 @@ import {
 	loadSession,
 	saveSession,
 } from './common-args.js';
-import { MCPClient } from '../mcp/mcp.js';
 
 export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> => {
 	const command = new Command('ask')
@@ -20,7 +19,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 		.argument('[question]', 'The question to ask Claude')
 		.action(async (question?: string, options?: CommonArgs) => {
 			const output = new Output();
-			let clients: MCPClient[] = [];
+			let cleanup = async (): Promise<void> => {};
 			try {
 				const prompt = await getPrompt(question);
 				const contextContent = getContextContent(options || {});
@@ -28,8 +27,8 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				// Load session if provided
 				const session = loadSession(options?.session, output);
 
-				const { tools, clients: clientList } = await createReadOnlyTools(process.cwd());
-				clients = clientList;
+				const { tools, cleanup: cleanupFn } = await createReadOnlyTools(process.cwd());
+				cleanup = cleanupFn;
 				const model = new Model(
 					anthropic,
 					CONFIG.model,
@@ -52,9 +51,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				);
 				process.exit(1);
 			} finally {
-				for (const client of clients) {
-					await client.close();
-				}
+				await cleanup();
 			}
 		});
 
