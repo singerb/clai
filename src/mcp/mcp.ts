@@ -7,14 +7,23 @@ import Anthropic from '@anthropic-ai/sdk';
 
 export class MCPClient {
 	protected transport: Transport;
-
 	protected client?: Client;
+	protected allowedTools: string[];
 
-	public constructor({ program, args }: { program: string; args: string[] }) {
+	public constructor({
+		program,
+		args,
+		allowedTools = [],
+	}: {
+		program: string;
+		args: string[];
+		allowedTools?: string[];
+	}) {
 		this.transport = new StdioClientTransport({
 			command: program,
 			args,
 		});
+		this.allowedTools = allowedTools;
 	}
 
 	public async initialize(): Promise<void> {
@@ -38,12 +47,16 @@ export class MCPClient {
 			throw new Error('Must call initialize() before use');
 		}
 		const tools = await this.client.listTools();
-		return tools.tools.map((tool) => {
-			if (this.client === undefined) {
-				throw new Error('Must call initialize() before use');
-			}
-			return new MCPToolWrapper(this.client, tool);
-		});
+		return tools.tools
+			.filter(
+				(tool) => this.allowedTools.length === 0 || this.allowedTools.includes(tool.name)
+			)
+			.map((tool) => {
+				if (this.client === undefined) {
+					throw new Error('Must call initialize() before use');
+				}
+				return new MCPToolWrapper(this.client, tool);
+			});
 	}
 
 	public async close(): Promise<void> {

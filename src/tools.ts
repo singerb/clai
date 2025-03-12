@@ -13,13 +13,6 @@ export type ToolsWithClients = {
 
 // Base function to set up common tools - not exported
 async function createBaseTools(workspaceRoot: string): Promise<ToolsWithClients> {
-	const gitClient = new MCPClient({
-		program: 'uvx',
-		args: ['mcp-server-git', '--repository', workspaceRoot],
-	});
-	await gitClient.initialize();
-	const gitTools = await gitClient.getTools();
-
 	const manualTools = [
 		new ReadFileTool(workspaceRoot),
 		new ListDirTool(workspaceRoot),
@@ -27,18 +20,40 @@ async function createBaseTools(workspaceRoot: string): Promise<ToolsWithClients>
 	] as AITool<ToolParams>[];
 
 	return {
-		tools: [...manualTools, ...gitTools],
-		clients: [gitClient],
+		tools: manualTools,
+		clients: [],
 	};
 }
 
 // Read-only tools for asking questions
 export async function createReadOnlyTools(workspaceRoot: string): Promise<ToolsWithClients> {
-	return createBaseTools(workspaceRoot);
+	// For read-only mode, restrict git tools to non-modifying operations
+	const allowedGitTools = ['git_status', 'git_diff', 'git_diff_staged', 'git_diff_unstaged', 'git_log', 'git_show'];
+	const gitClient = new MCPClient({
+		program: 'uvx',
+		args: ['mcp-server-git', '--repository', workspaceRoot],
+		allowedTools: allowedGitTools,
+	});
+	await gitClient.initialize();
+	const gitTools = await gitClient.getTools();
+
+	const baseTools = await createBaseTools(workspaceRoot);
+
+	return {
+		tools: [...baseTools.tools, ...gitTools],
+		clients: [...baseTools.clients, gitClient],
+	}
 }
 
 // Read-write tools for editing code
 export async function createReadWriteTools(workspaceRoot: string): Promise<ToolsWithClients> {
+	// For read-write mode, allow all git tools
+	const gitClient = new MCPClient({
+		program: 'uvx',
+		args: ['mcp-server-git', '--repository', workspaceRoot],
+	});
+	await gitClient.initialize();
+	const gitTools = await gitClient.getTools();
 	const baseToolsResult = await createBaseTools(workspaceRoot);
 
 	const editTools = [
@@ -47,8 +62,8 @@ export async function createReadWriteTools(workspaceRoot: string): Promise<Tools
 	] as AITool<ToolParams>[];
 
 	return {
-		tools: [...baseToolsResult.tools, ...editTools],
-		clients: baseToolsResult.clients,
+		tools: [...baseToolsResult.tools, ...editTools, ...gitTools],
+		clients: [...baseToolsResult.clients, gitClient],
 	};
 }
 
