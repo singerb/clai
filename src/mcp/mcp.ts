@@ -4,6 +4,7 @@ import { AITool, ToolParams, ToolResult } from '../tools/Tool.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { setTimeout } from 'timers/promises';
 
 export class MCPClient {
 	protected transport: Transport;
@@ -19,9 +20,19 @@ export class MCPClient {
 		args: string[];
 		allowedTools?: string[];
 	}) {
+		const env = {
+			DEBUG: "1",
+			PATH: process.env.PATH!,
+			HOME: process.env.HOME!,
+			SHELL: process.env.SHELL!,
+			LOGNAME: process.env.LOGNAME!,
+			TERM: process.env.TERM!,
+			USER: process.env.USER!,
+		};
 		this.transport = new StdioClientTransport({
 			command: program,
 			args,
+			env,
 		});
 		this.allowedTools = allowedTools;
 	}
@@ -40,6 +51,8 @@ export class MCPClient {
 		);
 
 		await this.client.connect(this.transport);
+
+		// await setTimeout(60 * 1000);
 	}
 
 	public async getTools(): Promise<MCPToolWrapper<ToolParams>[]> {

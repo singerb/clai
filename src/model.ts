@@ -45,8 +45,8 @@ export class Model {
 			case 'tool_use': {
 				// find the tool
 				this.output.aiInfo(
-					// 'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
-					'tool request: ' + content.name
+					'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
+					// 'tool request: ' + content.name
 				);
 				const tool = this.tools.find((t) => t.getDefinition().name === content.name);
 				if (!tool) {
@@ -57,7 +57,7 @@ export class Model {
 					// execute the tool
 					this.output.text(tool.describeInvocation(content.input as ToolParams));
 					const result = await tool.invoke(content.input as ToolParams);
-					// this.output.aiInfo('tool response: ' + result);
+					this.output.aiInfo('tool response: ' + result);
 					return {
 						text: tool.describeInvocation(content.input as ToolParams),
 						toolResult: {
