@@ -82,19 +82,8 @@ export class Model {
 	}
 
 	/**
-	 * Estimates the number of tokens in a text string
-	 * using a rough approximation of 4 characters per token
-	 * after stripping whitespace for better estimation
-	 */
-	protected estimateTokens(text: string): number {
-		// Strip whitespace for better token estimation
-		const strippedText = text.replace(/\s+/g, '');
-		return Math.ceil(strippedText.length / 4);
-	}
-
-	/**
 	 * Applies caching strategy to messages array
-	 * based on the number of existing cache_control markers and token estimation
+	 * Simply adds cache_control to the last content block in the last user message
 	 */
 	protected applyCachingStrategy(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
 		if (!messages || messages.length === 0) return messages;
@@ -102,94 +91,20 @@ export class Model {
 		// Deep clone the messages to avoid modifying the original
 		const processedMessages = JSON.parse(JSON.stringify(messages)) as Anthropic.MessageParam[];
 
-		// First pass: count existing cache_control markers
-		let cacheControlCount = 0;
-		let tokensSinceLastMarker = 0;
-		let lastMarkerIndex: [number, number] | null = null; // [messageIndex, contentIndex]
-
-		// Traverse all messages and their content blocks to count cache_control markers and tokens
-		for (let msgIndex = 0; msgIndex < processedMessages.length; msgIndex++) {
-			const message = processedMessages[msgIndex];
-			let content = message.content;
-
-			// Convert string content to array of blocks if needed
-			if (typeof content === 'string') {
-				content = [{ type: 'text', text: content }];
-				// Update the message to use the array format
-				message.content = content;
-			}
-
-			if (Array.isArray(content)) {
-				for (let blockIndex = 0; blockIndex < content.length; blockIndex++) {
-					const block = content[blockIndex];
-					if ('type' in block) {
-						if (block.type === 'text' && 'text' in block) {
-							tokensSinceLastMarker += this.estimateTokens(block.text);
-						} else if (block.type === 'tool_use' && 'input' in block) {
-							// For tool_use blocks, stringify the input for token estimation
-							const inputString = JSON.stringify(block.input);
-							tokensSinceLastMarker += this.estimateTokens(inputString);
-						}
-					}
-
-					if ('cache_control' in block) {
-						cacheControlCount++;
-						tokensSinceLastMarker = 0; // Reset token count
-						lastMarkerIndex = [msgIndex, blockIndex];
-					}
-				}
-			}
-		}
-
-		// Get the last message
+		// Get the last message and ensure it's a user message
 		const lastMessage = processedMessages[processedMessages.length - 1];
+		if (lastMessage.role !== 'user') return processedMessages;
 
 		// Ensure the content is an array
 		if (typeof lastMessage.content === 'string') {
 			lastMessage.content = [{ type: 'text', text: lastMessage.content }];
 		}
 
-		// Get the last content block of the last message (assuming content is now an array)
+		// Add cache_control to the last content block if content is now an array
 		if (Array.isArray(lastMessage.content) && lastMessage.content.length > 0) {
 			const lastBlock = lastMessage.content[lastMessage.content.length - 1] as TextBlock;
-
-			// Apply caching strategy
-			if (cacheControlCount === 0 && tokensSinceLastMarker > 1024) {
-				this.output.aiInfo(
-					`Caching: Case 1 - Adding first cache_control marker. tokensSinceLastMarker: ${tokensSinceLastMarker}`
-				);
-				// Add one cache_control if none exist and tokens > 1024
-				lastBlock.cache_control = { type: 'ephemeral' };
-			} else if (
-				cacheControlCount > 0 &&
-				cacheControlCount < 3 &&
-				tokensSinceLastMarker > 2048
-			) {
-				this.output.aiInfo(
-					`Caching: Case 2 - Adding additional cache_control marker. cacheControlCount: ${cacheControlCount}, tokensSinceLastMarker: ${tokensSinceLastMarker}`
-				);
-				// Add one more cache_control if fewer than 3 exist and tokens since last marker > 2048
-				lastBlock.cache_control = { type: 'ephemeral' };
-			} else if (cacheControlCount >= 3 && lastMarkerIndex) {
-				this.output.aiInfo(
-					`Caching: Case 3 - Moving cache_control marker. cacheControlCount: ${cacheControlCount}, lastMarkerIndex: [${lastMarkerIndex[0]}, ${lastMarkerIndex[1]}]`
-				);
-				// Remove only the last cache_control marker
-				const [msgIndex, blockIndex] = lastMarkerIndex;
-				const message = processedMessages[msgIndex];
-
-				if (Array.isArray(message.content)) {
-					const block = message.content[blockIndex] as TextBlock;
-					delete block.cache_control;
-				}
-
-				// Add to the last block
-				lastBlock.cache_control = { type: 'ephemeral' };
-			} else {
-				this.output.aiInfo(
-					`Caching: No cache_control changes. cacheControlCount: ${cacheControlCount}, tokensSinceLastMarker: ${tokensSinceLastMarker}`
-				);
-			}
+			lastBlock.cache_control = { type: 'ephemeral' };
+			this.output.aiInfo('Added cache_control marker to last user message content block');
 		}
 
 		return processedMessages;
@@ -202,7 +117,7 @@ export class Model {
 		messages: Anthropic.MessageParam[],
 		systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }]
 	): Promise<MessageResult> {
-		// Clean up and set cache_control on system prompts
+		// Add cache_control to the last system prompt
 		const processedSystemPrompts = systemPrompts.map((prompt, index) => {
 			const cleanPrompt = { ...prompt };
 			delete cleanPrompt.cache_control;
@@ -212,19 +127,21 @@ export class Model {
 			return cleanPrompt;
 		});
 
-		// Apply the caching strategy to the whole messages array
+		// Apply the caching strategy to add cache_control to the last user message
+		// Clones it so we can use the unmodified ones for the next round and not have to clean up old cache_control headers
 		const processedMessages = this.applyCachingStrategy(messages);
 
-		const message = await this.anthropic.messages.create({
+		const message = await this.anthropic.beta.messages.create({
 			model: this.model,
 			max_tokens: 4096 * 2,
 			messages: processedMessages,
 			tools: this.tools.map((tool) => tool.getDefinition()),
 			system: processedSystemPrompts,
+			betas: ['token-efficient-tools-2025-02-19'],
 		});
 
 		let needsContinuation = false;
-		const newMessages = [...processedMessages];
+		const newMessages = [...messages];
 		let newSystemPrompts = [...processedSystemPrompts];
 
 		// log useful info
