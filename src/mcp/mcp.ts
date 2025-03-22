@@ -19,9 +19,19 @@ export class MCPClient {
 		args: string[];
 		allowedTools?: string[];
 	}) {
+		const env = {
+			DEBUG: '1',
+			PATH: process.env.PATH!,
+			HOME: process.env.HOME!,
+			SHELL: process.env.SHELL!,
+			LOGNAME: process.env.LOGNAME!,
+			TERM: process.env.TERM!,
+			USER: process.env.USER!,
+		};
 		this.transport = new StdioClientTransport({
 			command: program,
 			args,
+			env,
 		});
 		this.allowedTools = allowedTools;
 	}
