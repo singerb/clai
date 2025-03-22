@@ -4,7 +4,6 @@ import { AITool, ToolParams, ToolResult } from '../tools/Tool.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { setTimeout } from 'timers/promises';
 
 export class MCPClient {
 	protected transport: Transport;
@@ -51,8 +50,6 @@ export class MCPClient {
 		);
 
 		await this.client.connect(this.transport);
-
-		// await setTimeout(60 * 1000);
 	}
 
 	public async getTools(): Promise<MCPToolWrapper<ToolParams>[]> {
