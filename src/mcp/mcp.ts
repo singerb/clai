@@ -21,7 +21,7 @@ export class MCPClient {
 		allowedTools?: string[];
 	}) {
 		const env = {
-			DEBUG: "1",
+			DEBUG: '1',
 			PATH: process.env.PATH!,
 			HOME: process.env.HOME!,
 			SHELL: process.env.SHELL!,

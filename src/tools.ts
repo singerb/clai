@@ -11,8 +11,18 @@ export type ToolsWithCleanup = {
 	cleanup: () => Promise<void>;
 };
 
+// Define ClientConfig type based on the examples
+export type ClientConfig = {
+	program: string;
+	args: string[];
+	readOnlyTools: string[];
+	readWriteTools: string[];
+};
+
 // List of client configurations
-const clientsList = [
+// Turning these all off for now; the git fails to start in a non-git folder, and the other ones aren't yet useful
+// But this structure is better for exploring them in the future
+const clientsList: ClientConfig[] = [
 	/*
 	{
 		program: 'uvx',
@@ -64,19 +74,21 @@ const clientsList = [
 		],
 	},
 	*/
+	/* Neither of these has worked for me so far
 	{
 		program: 'go',
 		args: ['run', 'github.com/isaacphi/mcp-language-server@latest', '--workspace', 'WORKSPACE_ROOT', '--lsp', 'node_modules/.bin/typescript-language-server', '--', '--stdio', '--log-level', '4'],
 		readWriteTools: [],
 		readOnlyTools: [],
 	},
-	/*{
+	{
 		program: 'npx',
 		// args: ["-y", "--silent", "git+https://github.com/jonrad/lsp-mcp", "--lsp", "npx -y --silent -p 'typescript' -p 'typescript-language-server' typescript-language-server --stdio"],
 		args: ["git+https://github.com/jonrad/lsp-mcp", "--lsp", "node_modules/.bin/typescript-language-server --stdio"],
 		readWriteTools: [],
 		readOnlyTools: [],
-	},*/
+	},
+	*/
 ];
 
 // Helper function to get clients and tools based on mode
@@ -105,10 +117,8 @@ async function getClientsAndTools(
 			allowedTools,
 		});
 
-		console.log(clientConfig.program + ' ' + clientConfig.args.join(' '));
 		await client.initialize();
 		const tools = await client.getTools();
-		console.log(JSON.stringify(tools.map((tool)=>tool.getDefinition())));
 
 		clients.push(client);
 		allTools.push(...tools);
