@@ -1,5 +1,5 @@
 #!/bin/sh
-':' //# http://sambal.org/?p=1014 ; exec `dirname $0`/node_modules/.bin/tsx "$0" "$@"
+':'; //# http://sambal.org/?p=1014 ; exec `dirname $0`/node_modules/.bin/tsx "$0" "$@"
 
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';

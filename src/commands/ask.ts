@@ -5,13 +5,7 @@ import { createReadOnlyTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
-import {
-	addCommonArgs,
-	getContextContent,
-	CommonArgs,
-	loadSession,
-	saveSession,
-} from './common-args.js';
+import { addCommonArgs, getContextContent, CommonArgs } from './common-args.js';
 
 export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> => {
 	const command = new Command('ask')
@@ -24,9 +18,6 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				const prompt = await getPrompt(question);
 				const contextContent = getContextContent(options || {});
 
-				// Load session if provided
-				const session = loadSession(options?.session, output);
-
 				const { tools, cleanup: cleanupFn } = await createReadOnlyTools(process.cwd());
 				cleanup = cleanupFn;
 				const model = new Model(
@@ -36,6 +27,10 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 					CONFIG.systemPrompts.ask,
 					output
 				);
+
+				// Load session if provided
+				const session = model.loadSession(options?.session);
+
 				const result = await model.createMessage({
 					prompt,
 					context: contextContent.length > 0 ? contextContent : undefined,
@@ -43,7 +38,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 				});
 
 				// Save session if path is provided
-				saveSession(options?.session, result, output);
+				model.saveSession(options?.session, result);
 			} catch (error) {
 				output.error(
 					'Error: ' +
