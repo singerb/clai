@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
-import { Model } from '../model.js';
+import { AnthropicModel } from '../models/anthropic.js';
 import { createReadOnlyTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
@@ -20,7 +20,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 
 				const { tools, cleanup: cleanupFn } = await createReadOnlyTools(process.cwd());
 				cleanup = cleanupFn;
-				const model = new Model(
+				const model = new AnthropicModel(
 					anthropic,
 					CONFIG.model,
 					tools,
