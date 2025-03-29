@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import Anthropic from '@anthropic-ai/sdk';
-import { LocalTool, ToolResult } from './Tool.js';
+import { LocalTool, ToolDescriptions, ToolResult } from './Tool.js';
 import { z } from 'zod';
 
 type ListDirParams = {
@@ -18,7 +17,10 @@ export class ListDirTool implements LocalTool<ListDirParams> {
 
 	constructor(private workspaceRoot: string) {}
 
-	getDefinition(): Anthropic.Tool {
+	getDefinition(): ToolDescriptions {
+		const name = 'list_dir';
+		const description =
+			'List the contents of a directory. Use this, recursively if needed, to discover files by looking at filenames.';
 		const schema = {
 			type: 'object' as const,
 			properties: {
@@ -31,10 +33,19 @@ export class ListDirTool implements LocalTool<ListDirParams> {
 		};
 
 		return {
-			name: 'list_dir',
-			description:
-				'List the contents of a directory. Use this, recursively if needed, to discover files by looking at filenames.',
-			input_schema: schema,
+			anthropic: {
+				name,
+				description,
+				input_schema: schema,
+			},
+			ollama: {
+				type: 'function',
+				function: {
+					name,
+					description,
+					parameters: schema,
+				},
+			},
 		};
 	}
 

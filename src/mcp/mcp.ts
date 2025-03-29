@@ -1,9 +1,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { AITool, ToolParams, ToolResult } from '../tools/Tool.js';
+import { AITool, ToolDescriptions, ToolParams, ToolResult } from '../tools/Tool.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import Anthropic from '@anthropic-ai/sdk';
 
 export class MCPClient {
 	protected transport: Transport;
@@ -83,11 +82,25 @@ export class MCPToolWrapper<T extends ToolParams> implements AITool<T> {
 	/**
 	 * Returns the Anthropic tool definition
 	 */
-	public getDefinition(): Anthropic.Tool {
+	public getDefinition(): ToolDescriptions {
 		return {
-			name: this.tool.name,
-			description: this.tool.description,
-			input_schema: this.tool.inputSchema,
+			anthropic: {
+				name: this.tool.name,
+				description: this.tool.description,
+				input_schema: this.tool.inputSchema,
+			},
+			/*ollama: {
+				type: 'function',
+				function: {
+					name: this.tool.name!,
+					description: this.tool.description!,
+					parameters: {
+						type: this.tool.inputSchema.type,
+						properties: this.tool.inputSchema.properties!,
+						required: []
+					},
+				}
+			},*/
 		};
 	}
 

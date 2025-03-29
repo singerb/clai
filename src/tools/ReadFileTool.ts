@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import Anthropic from '@anthropic-ai/sdk';
-import { LocalTool, ToolResult } from './Tool.js';
+import { LocalTool, ToolDescriptions, ToolResult } from './Tool.js';
 import { z } from 'zod';
 
 type ReadFileParams = {
@@ -18,7 +17,9 @@ export class ReadFileTool implements LocalTool<ReadFileParams> {
 
 	constructor(private workspaceRoot: string) {}
 
-	getDefinition(): Anthropic.Tool {
+	getDefinition(): ToolDescriptions {
+		const name = 'read_file';
+		const description = 'Read the contents of a file at the specified path.';
 		const schema = {
 			type: 'object' as const,
 			properties: {
@@ -31,9 +32,19 @@ export class ReadFileTool implements LocalTool<ReadFileParams> {
 		};
 
 		return {
-			name: 'read_file',
-			description: 'Read the contents of a file at the specified path.',
-			input_schema: schema,
+			anthropic: {
+				name,
+				description,
+				input_schema: schema,
+			},
+			ollama: {
+				type: 'function',
+				function: {
+					name,
+					description,
+					parameters: schema,
+				},
+			},
 		};
 	}
 

@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import { join, normalize } from 'path';
-import Anthropic from '@anthropic-ai/sdk';
-import { LocalTool, ToolResult } from './Tool.js';
+import { LocalTool, ToolResult, ToolDescriptions } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
@@ -25,7 +24,10 @@ export class EditFilesTool implements LocalTool<EditFilesParams> {
 
 	constructor(private workspaceRoot: string) {}
 
-	getDefinition(): Anthropic.Tool {
+	getDefinition(): ToolDescriptions {
+		const name = 'edit_files';
+		const description =
+			"Write new content to one or more files, specified as an array of record objects each with a path and the new content for that path. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.";
 		const schema = {
 			type: 'object' as const,
 			properties: {
@@ -53,10 +55,19 @@ export class EditFilesTool implements LocalTool<EditFilesParams> {
 		};
 
 		return {
-			name: 'edit_files',
-			description:
-				"Write new content to one or more files, specified as an array of record objects each with a path and the new content for that path. The results will include the files written successfully or any errors, and then any linting or compile errors present after these changes. Use this tool again to fix those, but give up if you can't after a few times.",
-			input_schema: schema,
+			anthropic: {
+				name,
+				description,
+				input_schema: schema,
+			},
+			ollama: {
+				type: 'function',
+				function: {
+					name,
+					description,
+					parameters: schema,
+				},
+			},
 		};
 	}
 

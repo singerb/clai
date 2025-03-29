@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
-import { AnthropicModel } from '../models/anthropic.js';
+import { AnthropicModel, AnthropicMessageResult } from '../models/anthropic.js';
 import { createReadOnlyTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
 import { addCommonArgs, getContextContent, CommonArgs } from './common-args.js';
+import { OllamaModel, OllamaMessageResult } from '../models/ollama.js';
+import { Model } from '../model.js';
 
 export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> => {
 	const command = new Command('ask')
@@ -16,17 +18,29 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 			let cleanup = async (): Promise<void> => {};
 			try {
 				const prompt = await getPrompt(question);
-				const contextContent = getContextContent(options || {});
+				const contextContent = getContextContent(options || { model: 'anthropic' });
 
 				const { tools, cleanup: cleanupFn } = await createReadOnlyTools(process.cwd());
 				cleanup = cleanupFn;
-				const model = new AnthropicModel(
-					anthropic,
-					CONFIG.model,
-					tools,
-					CONFIG.systemPrompts.ask,
-					output
-				);
+				let model: Model<AnthropicMessageResult | OllamaMessageResult>;
+				if ( options?.model === 'ollama' ) {
+					model = new OllamaModel(
+						CONFIG.model.ollama,
+						tools,
+						CONFIG.systemPrompts.ask,
+						output
+					);
+				} else if ( options === undefined || options.model === 'anthropic' ) {
+					model = new AnthropicModel(
+						anthropic,
+						CONFIG.model.anthropic,
+						tools,
+						CONFIG.systemPrompts.ask,
+						output
+					);
+				} else {
+					throw new Error( 'Unknown model specified' );
+				}
 
 				// Load session if provided
 				const session = model.loadSession(options?.session);

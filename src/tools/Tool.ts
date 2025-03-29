@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { Tool } from 'ollama';
 
 export type ToolParams = Record<string, unknown>;
 
@@ -7,14 +8,19 @@ export interface ToolResult {
 	system?: string;
 }
 
+export interface ToolDescriptions {
+	anthropic: Anthropic.Tool;
+	ollama?: Tool;
+}
+
 /**
  * Represents the base interface for all tools in the system
  */
 export interface AITool<T extends ToolParams> {
 	/**
-	 * Returns the Anthropic tool definition
+	 * Returns the tool definition
 	 */
-	getDefinition(): Anthropic.Tool;
+	getDefinition(): ToolDescriptions;
 
 	/**
 	 * Invokes the tool with the given parameters and returns the result

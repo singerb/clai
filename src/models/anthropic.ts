@@ -9,7 +9,7 @@ import { Model, CreateMessageOptions } from '../model.js';
 type CacheControl = { type: 'ephemeral' };
 type TextBlock = Anthropic.TextBlockParam & { cache_control?: CacheControl };
 
-export interface MessageResult {
+export interface AnthropicMessageResult {
 	state: {
 		messages: Anthropic.MessageParam[];
 		systemPrompts: TextBlock[];
@@ -53,15 +53,15 @@ const MessageParamSchema = z.object({
 	content: z.union([z.string(), z.array(ContentBlockSchema)]),
 });
 
-// Zod schema for MessageResult
-const MessageResultSchema = z.object({
+// Zod schema for AnthropicMessageResult
+const AnthropicMessageResultSchema = z.object({
 	state: z.object({
 		messages: z.array(MessageParamSchema),
 		systemPrompts: z.array(TextBlockSchema),
 	}),
 });
 
-export class AnthropicModel implements Model<MessageResult> {
+export class AnthropicModel implements Model<AnthropicMessageResult> {
 	constructor(
 		protected anthropic: Anthropic,
 		protected model: string,
@@ -91,7 +91,9 @@ export class AnthropicModel implements Model<MessageResult> {
 					// 'tool request: ' + content.name + ' with ' + JSON.stringify(content.input)
 					'tool request: ' + content.name
 				);
-				const tool = this.tools.find((t) => t.getDefinition().name === content.name);
+				const tool = this.tools.find(
+					(t) => t.getDefinition().anthropic.name === content.name
+				);
 				if (!tool) {
 					throw new Error(`Tool ${content.name} not found`);
 				}
@@ -159,7 +161,7 @@ export class AnthropicModel implements Model<MessageResult> {
 	protected async createMessageFromHistory(
 		messages: Anthropic.MessageParam[],
 		systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }]
-	): Promise<MessageResult> {
+	): Promise<AnthropicMessageResult> {
 		// Add cache_control to the last system prompt
 		const processedSystemPrompts = systemPrompts.map((prompt, index) => {
 			const cleanPrompt = { ...prompt };
@@ -178,7 +180,7 @@ export class AnthropicModel implements Model<MessageResult> {
 			model: this.model,
 			max_tokens: 4096 * 2,
 			messages: processedMessages,
-			tools: this.tools.map((tool) => tool.getDefinition()),
+			tools: this.tools.map((tool) => tool.getDefinition().anthropic),
 			system: processedSystemPrompts,
 			betas: ['token-efficient-tools-2025-02-19'],
 		});
@@ -249,8 +251,8 @@ export class AnthropicModel implements Model<MessageResult> {
 	 * Creates a message with Claude, combining any previous session data if provided
 	 */
 	public async createMessage(
-		options: CreateMessageOptions<MessageResult>
-	): Promise<MessageResult> {
+		options: CreateMessageOptions<AnthropicMessageResult>
+	): Promise<AnthropicMessageResult> {
 		// Start with default system prompt
 		let systemPrompts: TextBlock[] = [{ type: 'text' as const, text: this.systemPrompt }];
 
@@ -281,7 +283,7 @@ export class AnthropicModel implements Model<MessageResult> {
 	 * @param sessionPath Path to the session file
 	 * @returns The loaded session or undefined if loading failed
 	 */
-	public loadSession(sessionPath: string | undefined): MessageResult | undefined {
+	public loadSession(sessionPath: string | undefined): AnthropicMessageResult | undefined {
 		if (!sessionPath) {
 			return undefined;
 		}
@@ -294,7 +296,7 @@ export class AnthropicModel implements Model<MessageResult> {
 		try {
 			const sessionData = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
 			// Validate session data
-			const parseResult = MessageResultSchema.safeParse(sessionData);
+			const parseResult = AnthropicMessageResultSchema.safeParse(sessionData);
 			if (parseResult.success) {
 				this.output.text(`Session loaded from ${resolvedPath}`);
 				return parseResult.data;
@@ -313,9 +315,9 @@ export class AnthropicModel implements Model<MessageResult> {
 	 * @param result The session result to clean
 	 * @returns A cleaned copy of the session result with no cache_control markers
 	 */
-	protected stripCacheControlMarkers(result: MessageResult): MessageResult {
+	protected stripCacheControlMarkers(result: AnthropicMessageResult): AnthropicMessageResult {
 		// Deep clone the result to avoid modifying the original
-		const cleanedResult = JSON.parse(JSON.stringify(result)) as MessageResult;
+		const cleanedResult = JSON.parse(JSON.stringify(result)) as AnthropicMessageResult;
 
 		// Clean system prompts
 		cleanedResult.state.systemPrompts = cleanedResult.state.systemPrompts.map((prompt) => {
@@ -362,7 +364,7 @@ export class AnthropicModel implements Model<MessageResult> {
 	 * @param sessionPath Path to save the session to
 	 * @param result The session result to save
 	 */
-	public saveSession(sessionPath: string | undefined, result: MessageResult): void {
+	public saveSession(sessionPath: string | undefined, result: AnthropicMessageResult): void {
 		if (!sessionPath) {
 			return;
 		}

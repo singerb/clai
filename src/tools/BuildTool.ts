@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { LocalTool, ToolResult } from './Tool.js';
+import { LocalTool, ToolResult, ToolDescriptions } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { CONFIG } from '../config.js';
@@ -9,7 +8,10 @@ type BuildParams = Record<string, string>;
 export class BuildTool implements LocalTool<BuildParams> {
 	constructor(private workspaceRoot: string) {}
 
-	getDefinition(): Anthropic.Tool {
+	getDefinition(): ToolDescriptions {
+		const name = 'build';
+		const description =
+			'Trigger a format, lint, and type check for the codebase. The results will include any linting or compile errors present.';
 		const schema = {
 			type: 'object' as const,
 			properties: {},
@@ -17,10 +19,19 @@ export class BuildTool implements LocalTool<BuildParams> {
 		};
 
 		return {
-			name: 'build',
-			description:
-				'Trigger a format, lint, and type check for the codebase. The results will include any linting or compile errors present.',
-			input_schema: schema,
+			anthropic: {
+				name,
+				description,
+				input_schema: schema,
+			},
+			ollama: {
+				type: 'function',
+				function: {
+					name,
+					description,
+					parameters: schema,
+				},
+			},
 		};
 	}
 
