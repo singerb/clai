@@ -4,6 +4,7 @@ import { LocalTool, ToolResult, ToolDescriptions } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
+import { Type } from '@google/genai';
 
 type EditFileParams = {
 	/**
@@ -51,6 +52,24 @@ export class EditFileTool implements LocalTool<EditFileParams> {
 					name,
 					description,
 					parameters: schema,
+				},
+			},
+			gemini: {
+				name,
+				description,
+				parameters: {
+					type: Type.OBJECT,
+					properties: {
+						relative_workspace_path: {
+							type: Type.STRING,
+							description: 'File path relative to workspace root to write to',
+						},
+						content: {
+							type: Type.STRING,
+							description: 'New file content to write',
+						},
+					},
+					required: ['path', 'content'],
 				},
 			},
 		};

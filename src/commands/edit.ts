@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import Anthropic from '@anthropic-ai/sdk';
 import { AnthropicModel, AnthropicMessageResult } from '../models/anthropic.js';
 import { OllamaModel, OllamaMessageResult } from '../models/ollama.js';
+import { GeminiModel, GeminiMessageResult } from '../models/gemini.js';
 import { createReadWriteTools } from '../tools.js';
 import { CONFIG } from '../config.js';
 import { Output } from '../output.js';
@@ -23,24 +24,37 @@ export const setupEditCommand = async (anthropic: Anthropic): Promise<Command> =
 				const { tools, cleanup: cleanupFn } = await createReadWriteTools(process.cwd());
 				cleanup = cleanupFn;
 
-				let model: Model<AnthropicMessageResult | OllamaMessageResult>;
-				if ( options?.model === 'ollama' ) {
+				let model: Model<
+					AnthropicMessageResult | OllamaMessageResult | GeminiMessageResult
+				>;
+				if (options?.model === 'ollama') {
 					model = new OllamaModel(
 						CONFIG.model.ollama,
 						tools,
-						CONFIG.systemPrompts.ask,
+						CONFIG.systemPrompts.edit, // Note: Using edit system prompt here
 						output
 					);
-				} else if ( options === undefined || options.model === 'anthropic' ) {
+				} else if (options?.model === 'gemini') {
+					if (!CONFIG.api.geminiKey) {
+						throw new Error('GEMINI_API_KEY not set in environment');
+					}
+					model = new GeminiModel(
+						CONFIG.api.geminiKey,
+						CONFIG.model.gemini,
+						tools,
+						CONFIG.systemPrompts.edit, // Note: Using edit system prompt here
+						output
+					);
+				} else if (options === undefined || options.model === 'anthropic') {
 					model = new AnthropicModel(
 						anthropic,
 						CONFIG.model.anthropic,
 						tools,
-						CONFIG.systemPrompts.ask,
+						CONFIG.systemPrompts.edit, // Note: Using edit system prompt here
 						output
 					);
 				} else {
-					throw new Error( 'Unknown model specified' );
+					throw new Error('Unknown model specified');
 				}
 
 				// Load session if provided

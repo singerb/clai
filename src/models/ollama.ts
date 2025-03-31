@@ -131,7 +131,7 @@ export class OllamaModel implements Model<OllamaMessageResult> {
 		const { toolResults } = await this.handleOllamaResponse(response);
 
 		// handle tool calls and recurse
-		if ( toolResults.length > 0 ) {
+		if (toolResults.length > 0) {
 			console.log(JSON.stringify(toolResults));
 			for (const toolResult of toolResults) {
 				// If the tool provided new system prompt content, add it

@@ -5,7 +5,7 @@ import path from 'path';
 export interface CommonArgs {
 	context?: string[];
 	session?: string;
-	model: 'anthropic' | 'ollama';
+	model: 'anthropic' | 'ollama' | 'gemini';
 }
 
 export function addCommonArgs(command: Command): Command {
@@ -17,7 +17,14 @@ export function addCommonArgs(command: Command): Command {
 			[]
 		)
 		.option('-s, --session <path>', 'path to a session file')
-		.addOption(new Option('-m, --model <type>', 'specify the model to use: anthropic or ollama').choices( [ 'anthropic', 'ollama' ] ).default('anthropic'));
+		.addOption(
+			new Option(
+				'-m, --model <type>',
+				'specify the model to use: anthropic, ollama, or gemini'
+			)
+				.choices(['anthropic', 'ollama', 'gemini'])
+				.default('anthropic')
+		);
 }
 
 export function getContextContent(args: CommonArgs): string[] {

@@ -2,6 +2,7 @@ import { LocalTool, ToolResult, ToolDescriptions } from './Tool.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { CONFIG } from '../config.js';
+import { Type } from '@google/genai';
 
 type BuildParams = Record<string, string>;
 
@@ -31,6 +32,11 @@ export class BuildTool implements LocalTool<BuildParams> {
 					description,
 					parameters: schema,
 				},
+			},
+			gemini: {
+				name,
+				description,
+				parameters: { ...schema, type: Type.OBJECT },
 			},
 		};
 	}

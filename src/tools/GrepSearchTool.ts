@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 // import { promisify } from 'util';
 import { LocalTool, ToolParams, ToolResult, ToolDescriptions } from './Tool.js';
 import { z } from 'zod';
+import { Type } from '@google/genai';
 
 // const execAsync = promisify(exec);
 
@@ -48,6 +49,20 @@ export class GrepSearchTool implements LocalTool<GrepSearchParams> {
 					name,
 					description,
 					parameters: schema,
+				},
+			},
+			gemini: {
+				name,
+				description,
+				parameters: {
+					type: Type.OBJECT,
+					properties: {
+						query: {
+							type: Type.STRING,
+							description: 'The search query to find in files',
+						},
+					},
+					required: ['query'],
 				},
 			},
 		};

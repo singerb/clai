@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { LocalTool, ToolDescriptions, ToolResult } from './Tool.js';
 import { z } from 'zod';
+import { Type } from '@google/genai';
 
 type ListDirParams = {
 	/**
@@ -26,7 +27,8 @@ export class ListDirTool implements LocalTool<ListDirParams> {
 			properties: {
 				relative_workspace_path: {
 					type: 'string' as const,
-					description: 'Path to list contents of, relative to the workspace root',
+					description:
+						'Path to list contents of, relative to the workspace root; specify . to examine the current working directory',
 				},
 			},
 			required: ['relative_workspace_path'],
@@ -44,6 +46,20 @@ export class ListDirTool implements LocalTool<ListDirParams> {
 					name,
 					description,
 					parameters: schema,
+				},
+			},
+			gemini: {
+				name,
+				description,
+				parameters: {
+					type: Type.OBJECT,
+					properties: {
+						relative_workspace_path: {
+							type: Type.STRING,
+							description: 'Path to list contents of, relative to the workspace root',
+						},
+					},
+					required: ['relative_workspace_path'],
 				},
 			},
 		};

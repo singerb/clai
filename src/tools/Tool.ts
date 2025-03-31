@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { FunctionDeclaration } from '@google/genai';
 import { Tool } from 'ollama';
 
 export type ToolParams = Record<string, unknown>;
@@ -11,6 +12,7 @@ export interface ToolResult {
 export interface ToolDescriptions {
 	anthropic: Anthropic.Tool;
 	ollama?: Tool;
+	gemini?: FunctionDeclaration;
 }
 
 /**

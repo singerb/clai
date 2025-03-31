@@ -7,6 +7,7 @@ import { Output } from '../output.js';
 import { getPrompt } from '../input.js';
 import { addCommonArgs, getContextContent, CommonArgs } from './common-args.js';
 import { OllamaModel, OllamaMessageResult } from '../models/ollama.js';
+import { GeminiModel, GeminiMessageResult } from '../models/gemini.js';
 import { Model } from '../model.js';
 
 export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> => {
@@ -22,15 +23,28 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 
 				const { tools, cleanup: cleanupFn } = await createReadOnlyTools(process.cwd());
 				cleanup = cleanupFn;
-				let model: Model<AnthropicMessageResult | OllamaMessageResult>;
-				if ( options?.model === 'ollama' ) {
+				let model: Model<
+					AnthropicMessageResult | OllamaMessageResult | GeminiMessageResult
+				>;
+				if (options?.model === 'ollama') {
 					model = new OllamaModel(
 						CONFIG.model.ollama,
 						tools,
 						CONFIG.systemPrompts.ask,
 						output
 					);
-				} else if ( options === undefined || options.model === 'anthropic' ) {
+				} else if (options?.model === 'gemini') {
+					if (!CONFIG.api.geminiKey) {
+						throw new Error('GEMINI_API_KEY not set in environment');
+					}
+					model = new GeminiModel(
+						CONFIG.api.geminiKey,
+						CONFIG.model.gemini,
+						tools,
+						CONFIG.systemPrompts.ask,
+						output
+					);
+				} else if (options === undefined || options.model === 'anthropic') {
 					model = new AnthropicModel(
 						anthropic,
 						CONFIG.model.anthropic,
@@ -39,7 +53,7 @@ export const setupAskCommand = async (anthropic: Anthropic): Promise<Command> =>
 						output
 					);
 				} else {
-					throw new Error( 'Unknown model specified' );
+					throw new Error('Unknown model specified');
 				}
 
 				// Load session if provided

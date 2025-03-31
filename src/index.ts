@@ -9,10 +9,10 @@ import { CONFIG } from './config.js';
 
 const program = new Command();
 const anthropic = new Anthropic({
-	apiKey: CONFIG.api.key,
+	apiKey: CONFIG.api.anthropicKey,
 });
 
-program.name('clai').description('Command Line AI Assistant powered by Claude').version('1.0.0');
+program.name('clai').description('Command Line AI Assistant').version('1.0.0');
 
 program.addCommand(await setupAskCommand(anthropic));
 program.addCommand(await setupEditCommand(anthropic));

@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { LocalTool, ToolDescriptions, ToolResult } from './Tool.js';
 import { z } from 'zod';
+import { Type } from '@google/genai';
 
 type ReadFileParams = {
 	/**
@@ -43,6 +44,21 @@ export class ReadFileTool implements LocalTool<ReadFileParams> {
 					name,
 					description,
 					parameters: schema,
+				},
+			},
+			gemini: {
+				name,
+				description,
+				parameters: {
+					type: Type.OBJECT,
+					properties: {
+						relative_workspace_path: {
+							type: Type.STRING,
+							description:
+								'The path of the file to read, relative to the workspace root',
+						},
+					},
+					required: ['relative_workspace_path'],
 				},
 			},
 		};
